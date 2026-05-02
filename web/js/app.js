@@ -278,8 +278,13 @@ async function routeFromHash() {
   });
 
   const titles = {
-    dashboard: 'Дашборд', apps: 'Приложения', campaigns: 'Кампании',
-    topup: 'Пополнить баланс', history: 'История', app: 'Приложение',
+    dashboard: 'Дашборд',
+    apps: 'Приложения',
+    observations: 'Наблюдения за позициями',
+    campaigns: 'Активные кампании',
+    topup: 'Пополнить баланс',
+    history: 'История операций',
+    app: 'Приложение',
   };
   document.getElementById('pageTitle').textContent = titles[page] || 'Дашборд';
 
@@ -288,11 +293,21 @@ async function routeFromHash() {
     if (page === 'app') {
       const app = data.apps.find(a => a.id === params[0]);
       if (app) await ensureAppKeywords(app);
-      pageContent.innerHTML = renderAppDetail(params[0]);
+      const tab = params[1] || 'observations';
+      pageContent.innerHTML = renderAppDetail(params[0], tab);
+      // Lazy-load matrix when on observations tab
+      if (tab === 'observations' && app && _matrixState.appId === params[0]) {
+        if (_matrixState.data) paintMatrix();
+        else loadMatrix();
+      }
     } else {
       const renderers = {
-        dashboard: renderDashboard, apps: renderApps,
-        campaigns: renderCampaigns, topup: renderTopup, history: renderHistory,
+        dashboard: renderDashboard,
+        apps: renderApps,
+        observations: renderObservations,
+        campaigns: renderCampaigns,
+        topup: renderTopup,
+        history: renderHistory,
       };
       pageContent.innerHTML = (renderers[page] || renderDashboard)();
     }
@@ -314,10 +329,55 @@ function renderDashboard() {
     s + a.keywords.reduce((kk, k) => kk + (k.totalInstalled || 0), 0), 0);
   const activeApps = data.apps.filter(a => a.status !== 'paused').length;
   const totalKeywords = data.apps.reduce((s, a) => s + a.keywords.length, 0);
+  const inTop10 = data.apps.reduce((s, a) =>
+    s + a.keywords.filter(k => k.currentPos != null && k.currentPos <= 10).length, 0);
   const lastTopup = data.transactions
     .filter(t => t.type === 'topup' && t.status === 'done')
     .sort((a, b) => b.createdAt - a.createdAt)[0];
   const recentTxs = data.transactions.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 5);
+
+  // Empty state for new users
+  if (data.apps.length === 0) {
+    return `
+      <div class="page">
+        <div class="page-header">
+          <div>
+            <div class="page-subtitle">/ ${formatDate(Date.now())}</div>
+            <div class="page-title">Добро пожаловать, <span class="accent">${escapeHtml(data.user.name)}</span></div>
+          </div>
+        </div>
+
+        <div class="hint">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          <div>
+            <b>Как это работает.</b> Добавь приложение из&nbsp;App Store, укажи ключи которые хочешь продвинуть.
+            Мы&nbsp;покажем <b>текущие позиции</b> по этим ключам и&nbsp;<b>историю за 30 дней</b>.
+            Когда захочешь поднять позицию — запустишь кампанию установок (списания идут с&nbsp;баланса).
+          </div>
+        </div>
+
+        <div class="qa-grid">
+          <div class="qa-card" onclick="openAddApp()">
+            <div class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></div>
+            <div class="qa-title">1 · Добавь приложение</div>
+            <div class="qa-desc">Вставь ссылку на App Store, перечисли ключи. Имя, иконка, рейтинг и текущие позиции подтянутся автоматически.</div>
+            <div class="qa-arrow">+ Добавить →</div>
+          </div>
+          <div class="qa-card" onclick="goPage('observations')">
+            <div class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><polyline points="7 14 11 10 15 13 21 7"/></svg></div>
+            <div class="qa-title">2 · Наблюдай</div>
+            <div class="qa-desc">На странице приложения — матрица позиций по дням со стрелками тренда. Никаких лишних кликов.</div>
+            <div class="qa-arrow">Посмотреть пример →</div>
+          </div>
+          <div class="qa-card" onclick="goPage('topup')">
+            <div class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+            <div class="qa-title">3 · Запусти кампанию</div>
+            <div class="qa-desc">Пополни баланс и закажи установки на ключ — поднимем позицию выше. Цена от $0.13 за установку.</div>
+            <div class="qa-arrow">Тарифы →</div>
+          </div>
+        </div>
+      </div>`;
+  }
 
   return `
     <div class="page">
@@ -327,8 +387,8 @@ function renderDashboard() {
           <div class="page-title">Привет, <span class="accent">${escapeHtml(data.user.name)}</span></div>
         </div>
         <div class="action-group">
-          <button class="btn btn-ghost" onclick="goPage('apps')">Приложения</button>
-          <button class="btn btn-primary" onclick="goPage('topup')">Пополнить +</button>
+          <button class="btn btn-ghost" onclick="openAddApp()">+ Приложение</button>
+          <button class="btn btn-primary" onclick="goPage('topup')">Пополнить</button>
         </div>
       </div>
 
@@ -344,65 +404,81 @@ function renderDashboard() {
           <div class="stat-c-sub green">${activeApps} активных</div>
         </div>
         <div class="stat-c">
-          <div class="stat-c-lbl">Ключевых слов</div>
+          <div class="stat-c-lbl">Ключей в работе</div>
           <div class="stat-c-val">${totalKeywords}</div>
-          <div class="stat-c-sub">в работе</div>
+          <div class="stat-c-sub green">${inTop10} в&nbsp;топ-10</div>
         </div>
         <div class="stat-c">
-          <div class="stat-c-lbl">Установок</div>
+          <div class="stat-c-lbl">Установок куплено</div>
           <div class="stat-c-val">${formatNum(totalInstalls)}</div>
-          <div class="stat-c-sub">всего за&nbsp;период</div>
+          <div class="stat-c-sub">за всё время</div>
+        </div>
+      </div>
+
+      <div class="qa-grid">
+        <div class="qa-card" onclick="goPage('observations')">
+          <div class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><polyline points="7 14 11 10 15 13 21 7"/></svg></div>
+          <div class="qa-title">Наблюдения</div>
+          <div class="qa-desc">Текущие позиции всех ключей по всем приложениям. Где топ-10, где упали, где надо толкать.</div>
+          <div class="qa-arrow">Смотреть позиции →</div>
+        </div>
+        <div class="qa-card" onclick="goPage('campaigns')">
+          <div class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+          <div class="qa-title">Кампании</div>
+          <div class="qa-desc">Активные пуши установок. Сколько крутится прямо сейчас, по каким ключам, на сколько хватит.</div>
+          <div class="qa-arrow">К&nbsp;кампаниям →</div>
+        </div>
+        <div class="qa-card" onclick="openAddApp()">
+          <div class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+          <div class="qa-title">+ Новое приложение</div>
+          <div class="qa-desc">Подключи ещё один app: ссылка + ключи, остальное MAYA сделает сама за&nbsp;~5 секунд.</div>
+          <div class="qa-arrow">Добавить →</div>
         </div>
       </div>
 
       <div class="card">
         <div class="card-head">
-          <div class="card-title">Активные приложения <span class="badge">${activeApps}</span></div>
+          <div class="card-title">Мои приложения <span class="badge">${data.apps.length}</span></div>
           <button class="btn btn-ghost btn-sm" onclick="goPage('apps')">Все →</button>
         </div>
         <div class="card-body dense">
-          ${data.apps.length === 0
-            ? `<div class="empty">
-                <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-                <div class="empty-title">Пока пусто</div>
-                <div class="empty-text">Добавьте первое приложение, чтобы начать запуск кампании по ключам.</div>
-                <button class="btn btn-primary" onclick="openAddApp()">Добавить приложение</button>
-              </div>`
-            : `<div class="table-wrap"><table class="tbl"><thead><tr>
-                <th>Приложение</th><th>Гео</th><th>Ключей</th><th>Установок</th><th>Статус</th><th></th>
-              </tr></thead><tbody>${data.apps.slice(0, 5).map(a => {
-                const inst = a.keywords.reduce((s, k) => s + (k.totalInstalled || 0), 0);
-                return `<tr>
-                  <td><div class="app-cell">
-                    <div class="app-icon-sm" style="--ico-a: ${a.colorA}; --ico-b: ${a.colorB};">${escapeHtml(a.name.slice(0,1).toUpperCase())}</div>
-                    <div class="app-cell-info">
-                      <div class="app-cell-name">${escapeHtml(a.name)}</div>
-                      <div class="app-cell-meta">${escapeHtml(a.category)}</div>
-                    </div>
-                  </div></td>
-                  <td class="mono">${escapeHtml(a.geo)}</td>
-                  <td class="num">${a.keywords.length}</td>
-                  <td class="num green">${formatNum(inst)}</td>
-                  <td>${statusPill(a.status)}</td>
-                  <td><button class="btn btn-ghost btn-sm" onclick="goPage('app', '${a.id}')">Открыть →</button></td>
-                </tr>`;
-              }).join('')}</tbody></table></div>`}
+          <div class="table-wrap"><table class="tbl"><thead><tr>
+            <th>Приложение</th><th>Гео</th><th>Ключей</th><th>В&nbsp;топ-10</th><th>Установок</th><th></th>
+          </tr></thead><tbody>${data.apps.slice(0, 5).map(a => {
+            const inst = a.keywords.reduce((s, k) => s + (k.totalInstalled || 0), 0);
+            const top10 = a.keywords.filter(k => k.currentPos != null && k.currentPos <= 10).length;
+            return `<tr style="cursor:pointer" onclick="goPage('app', '${a.id}')">
+              <td><div class="app-cell">
+                ${a.iconUrl
+                  ? `<img src="${escapeAttr(a.iconUrl)}" alt="" style="width:32px;height:32px;border-radius:7px;object-fit:cover;flex-shrink:0">`
+                  : `<div class="app-icon-sm" style="--ico-a: ${a.colorA}; --ico-b: ${a.colorB};">${escapeHtml(a.name.slice(0,1).toUpperCase())}</div>`}
+                <div class="app-cell-info">
+                  <div class="app-cell-name">${escapeHtml(a.name)}</div>
+                  <div class="app-cell-meta">${escapeHtml(a.category)}</div>
+                </div>
+              </div></td>
+              <td class="mono">${escapeHtml(a.geo)}</td>
+              <td class="num">${a.keywords.length}</td>
+              <td class="num green">${top10}</td>
+              <td class="num">${formatNum(inst)}</td>
+              <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();goPage('app', '${a.id}')">Открыть →</button></td>
+            </tr>`;
+          }).join('')}</tbody></table></div>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-head">
-          <div class="card-title">Последние операции</div>
-          <button class="btn btn-ghost btn-sm" onclick="goPage('history')">Вся история →</button>
-        </div>
-        <div class="card-body dense">
-          ${recentTxs.length === 0
-            ? `<div class="empty"><div class="empty-text">Операций ещё не было</div></div>`
-            : `<div class="table-wrap"><table class="tbl"><thead><tr>
-                <th>Дата</th><th>Тип</th><th>Описание</th><th style="text-align:right">Сумма</th><th>Статус</th>
-              </tr></thead><tbody>${recentTxs.map(t => txRow(t)).join('')}</tbody></table></div>`}
-        </div>
-      </div>
+      ${recentTxs.length > 0 ? `
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Последние операции</div>
+            <button class="btn btn-ghost btn-sm" onclick="goPage('history')">Вся история →</button>
+          </div>
+          <div class="card-body dense">
+            <div class="table-wrap"><table class="tbl"><thead><tr>
+              <th>Дата</th><th>Тип</th><th>Описание</th><th style="text-align:right">Сумма</th><th>Статус</th>
+            </tr></thead><tbody>${recentTxs.map(t => txRow(t)).join('')}</tbody></table></div>
+          </div>
+        </div>` : ''}
     </div>`;
 }
 
@@ -460,49 +536,170 @@ function renderApps() {
     </div>`;
 }
 
-function renderCampaigns() {
+/**
+ * НАБЛЮДЕНИЯ — все ключи всех приложений с текущими позициями.
+ * Это «пассивный мониторинг»: смотришь как меняются ранги, ничего не платишь сверху.
+ */
+function renderObservations() {
   const rows = [];
   data.apps.forEach(a => a.keywords.forEach(k => rows.push({ app: a, kw: k })));
+
+  // mini-stats
+  const inTop10  = rows.filter(r => r.kw.currentPos != null && r.kw.currentPos <= 10).length;
+  const inTop30  = rows.filter(r => r.kw.currentPos != null && r.kw.currentPos > 10 && r.kw.currentPos <= 30).length;
+  const out      = rows.filter(r => r.kw.currentPos == null || r.kw.currentPos > 100).length;
+
   return `
     <div class="page">
       <div class="page-header">
         <div>
-          <div class="page-subtitle">/ All keywords · ${rows.length}</div>
-          <div class="page-title">Активные <span class="accent">кампании</span></div>
+          <div class="page-subtitle">/ Мониторинг ранков · ${rows.length} запросов</div>
+          <div class="page-title">Наблюдения <span class="accent">за позициями</span></div>
         </div>
-        <button class="btn btn-ghost" onclick="goPage('apps')">Управлять приложениями</button>
+        <button class="btn btn-ghost" onclick="goPage('apps')">К приложениям</button>
       </div>
-      ${rows.length === 0
-        ? `<div class="card"><div class="card-body"><div class="empty">
-            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            <div class="empty-title">Кампании ещё не запущены</div>
-            <div class="empty-text">Добавьте приложение и&nbsp;ключевые слова, чтобы начать продвижение.</div>
-            <button class="btn btn-primary" onclick="goPage('apps')">К приложениям</button>
-          </div></div></div>`
-        : `<div class="card"><div class="card-body dense"><div class="table-wrap"><table class="tbl">
-            <thead><tr><th>Приложение</th><th>Ключ</th><th>Гео</th><th>Старт</th><th>Цель</th><th>Установлено</th><th>Прогресс</th><th></th></tr></thead>
-            <tbody>${rows.map(({app, kw}) => {
-              const progress = Math.min(100, Math.round(((kw.totalInstalled || 0) / Math.max(1, kw.plan || 1000)) * 100));
-              return `<tr>
-                <td><div class="app-cell">
-                  <div class="app-icon-sm" style="--ico-a: ${app.colorA}; --ico-b: ${app.colorB};">${escapeHtml(app.name.slice(0,1).toUpperCase())}</div>
-                  <div class="app-cell-info">
-                    <div class="app-cell-name">${escapeHtml(app.name)}</div>
-                    <div class="app-cell-meta">${escapeHtml(app.category)}</div>
-                  </div>
-                </div></td>
-                <td><b style="color:var(--ink)">${escapeHtml(kw.name)}</b></td>
-                <td class="mono">${escapeHtml(app.geo)}</td>
-                <td class="num">#${kw.currentPos || '—'}</td>
-                <td class="num green">#${kw.targetPos || '—'}</td>
-                <td class="num green">${formatNum(kw.totalInstalled || 0)}</td>
-                <td><div style="display:flex;align-items:center;gap:10px;min-width:120px">
-                  <div class="progress" style="flex:1"><div class="progress-fill" style="width:${progress}%"></div></div>
-                  <span class="mono" style="font-size:11px;color:var(--ink-2)">${progress}%</span>
-                </div></td>
-                <td><button class="btn btn-ghost btn-sm" onclick="goPage('app', '${app.id}')">Таблица →</button></td>
-              </tr>`;
-            }).join('')}</tbody></table></div></div></div>`}
+
+      ${rows.length === 0 ? renderObservationsEmpty() : `
+        <div class="stat-grid">
+          <div class="stat-c"><div class="stat-c-lbl">Всего ключей</div><div class="stat-c-val">${rows.length}</div><div class="stat-c-sub">по ${data.apps.length} приложениям</div></div>
+          <div class="stat-c"><div class="stat-c-lbl">В топ-10</div><div class="stat-c-val accent">${inTop10}</div><div class="stat-c-sub green">${rows.length ? Math.round(inTop10/rows.length*100) : 0}%</div></div>
+          <div class="stat-c"><div class="stat-c-lbl">11–30</div><div class="stat-c-val">${inTop30}</div><div class="stat-c-sub">средний топ</div></div>
+          <div class="stat-c"><div class="stat-c-lbl">Не в топ-100</div><div class="stat-c-val">${out}</div><div class="stat-c-sub">требуют пуша</div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Все ключи</div>
+            <div style="font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--ink-3); letter-spacing:0.08em;">
+              кликни строку чтобы открыть приложение
+            </div>
+          </div>
+          <div class="card-body dense">
+            <div class="table-wrap"><table class="tbl">
+              <thead><tr>
+                <th>Приложение</th><th>Запрос</th><th>Гео</th>
+                <th>Текущая</th><th>Цель</th><th>Статус</th>
+              </tr></thead>
+              <tbody>${rows.map(({app, kw}) => `
+                <tr style="cursor:pointer" onclick="goPage('app', '${app.id}/observations')">
+                  <td><div class="app-cell">
+                    ${app.iconUrl
+                      ? `<img src="${escapeAttr(app.iconUrl)}" alt="" style="width:32px;height:32px;border-radius:7px;object-fit:cover;flex-shrink:0">`
+                      : `<div class="app-icon-sm" style="--ico-a: ${app.colorA}; --ico-b: ${app.colorB};">${escapeHtml(app.name.slice(0,1).toUpperCase())}</div>`}
+                    <div class="app-cell-info">
+                      <div class="app-cell-name">${escapeHtml(app.name)}</div>
+                      <div class="app-cell-meta">${escapeHtml(app.category)}</div>
+                    </div>
+                  </div></td>
+                  <td><b style="color:var(--ink)">${escapeHtml(kw.name)}</b></td>
+                  <td class="mono">${escapeHtml(app.geo)}</td>
+                  <td class="num ${posTextClass(kw.currentPos)}">${kw.currentPos != null ? '#' + kw.currentPos : '—'}</td>
+                  <td class="num green">#${kw.targetPos || '—'}</td>
+                  <td>${posStatusPill(kw.currentPos, kw.targetPos)}</td>
+                </tr>`).join('')}</tbody>
+            </table></div>
+          </div>
+        </div>
+      `}
+    </div>`;
+}
+
+function renderObservationsEmpty() {
+  return `<div class="card"><div class="card-body"><div class="empty">
+    <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><polyline points="7 14 11 10 15 13 21 7"/></svg>
+    <div class="empty-title">Нет данных для мониторинга</div>
+    <div class="empty-text">
+      Здесь появятся <b>текущие позиции всех ключей</b> по всем приложениям. Начни с&nbsp;добавления приложения — мы&nbsp;сразу подтянем ранги из&nbsp;App Store.
+    </div>
+    <button class="btn btn-primary" onclick="openAddApp()">+ Добавить приложение</button>
+  </div></div></div>`;
+}
+
+function posTextClass(pos) {
+  if (pos == null) return '';
+  if (pos <= 10) return 'green';
+  if (pos > 100) return 'red';
+  return '';
+}
+
+function posStatusPill(cur, target) {
+  if (cur == null) return `<span class="status-pill">нет данных</span>`;
+  if (cur <= (target || 10)) return `<span class="status-pill active">в цели</span>`;
+  if (cur <= 30) return `<span class="status-pill">близко</span>`;
+  if (cur <= 100) return `<span class="status-pill" style="color:var(--ochre);border-color:var(--ochre)">далеко</span>`;
+  return `<span class="status-pill paused">вне топа</span>`;
+}
+
+/**
+ * КАМПАНИИ — активные пуши установок.
+ * Кампания = ключ с заплпнированными installs, по которому реально крутится трафик.
+ */
+function renderCampaigns() {
+  // Активная кампания = ключ у которого есть установленные installs за последние 14 дней
+  const rows = [];
+  data.apps.forEach(a => a.keywords.forEach(k => {
+    const installs = k.totalInstalled || 0;
+    if (installs > 0 || k.dailyCap > 0) rows.push({ app: a, kw: k, installs });
+  }));
+
+  return `
+    <div class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-subtitle">/ Активные пуши установок · ${rows.length}</div>
+          <div class="page-title">Мои <span class="accent">кампании</span></div>
+        </div>
+        <button class="btn btn-primary" onclick="goPage('apps')">+ Запустить кампанию</button>
+      </div>
+
+      ${rows.length === 0 ? `
+        <div class="card"><div class="card-body"><div class="empty">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <div class="empty-title">Кампании пока не запущены</div>
+          <div class="empty-text">
+            Кампания — это <b>оплачиваемое продвижение</b> ключевого слова через установки.
+            Чтобы запустить: открой приложение → в&nbsp;матрице кликни на&nbsp;ключ → задай объём установок на&nbsp;день.
+          </div>
+          <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+            ${data.apps.length === 0
+              ? `<button class="btn btn-primary" onclick="openAddApp()">+ Добавить первое приложение</button>`
+              : `<button class="btn btn-primary" onclick="goPage('apps')">К приложениям</button>
+                 <button class="btn btn-ghost" onclick="goPage('observations')">Сначала посмотреть позиции →</button>`}
+          </div>
+        </div></div></div>`
+       : `
+        <div class="card">
+          <div class="card-body dense">
+            <div class="table-wrap"><table class="tbl">
+              <thead><tr>
+                <th>Приложение</th><th>Ключ</th><th>Тариф</th>
+                <th>Тек. позиция</th><th>Цель</th>
+                <th>Установлено</th><th>Дневной кап</th>
+                <th>Статус</th><th></th>
+              </tr></thead>
+              <tbody>${rows.map(({app, kw, installs}) => `
+                <tr>
+                  <td><div class="app-cell">
+                    ${app.iconUrl
+                      ? `<img src="${escapeAttr(app.iconUrl)}" alt="" style="width:32px;height:32px;border-radius:7px;object-fit:cover;flex-shrink:0">`
+                      : `<div class="app-icon-sm" style="--ico-a: ${app.colorA}; --ico-b: ${app.colorB};">${escapeHtml(app.name.slice(0,1).toUpperCase())}</div>`}
+                    <div class="app-cell-info">
+                      <div class="app-cell-name">${escapeHtml(app.name)}</div>
+                      <div class="app-cell-meta">${escapeHtml(app.geo)}</div>
+                    </div>
+                  </div></td>
+                  <td><b style="color:var(--ink)">${escapeHtml(kw.name)}</b></td>
+                  <td class="mono" style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink-2);">${escapeHtml(kw.planTier || 'standard')}</td>
+                  <td class="num">${kw.currentPos != null ? '#' + kw.currentPos : '—'}</td>
+                  <td class="num green">#${kw.targetPos || '—'}</td>
+                  <td class="num green">${formatNum(installs)}</td>
+                  <td class="num">${formatNum(kw.dailyCap || 0)}/день</td>
+                  <td>${statusPill(kw.status)}</td>
+                  <td><button class="btn btn-ghost btn-sm" onclick="goPage('app', '${app.id}/campaigns')">Управлять →</button></td>
+                </tr>`).join('')}</tbody>
+            </table></div>
+          </div>
+        </div>`}
     </div>`;
 }
 
@@ -711,7 +908,7 @@ function renderHistory() {
 
 let _matrixState = { appId: null, days: 30, traffic: 'all', data: null, loading: false };
 
-function renderAppDetail(appId) {
+function renderAppDetail(appId, tab = 'observations') {
   const app = data.apps.find(a => a.id === appId);
   if (!app) {
     return `<div class="page"><div class="card"><div class="card-body"><div class="empty">
@@ -720,10 +917,10 @@ function renderAppDetail(appId) {
     </div></div></div></div>`;
   }
 
-  // Lazy-load matrix on first paint or when app changes
+  // Lazy-load matrix on first paint or when app/tab changes
   if (_matrixState.appId !== appId) {
     _matrixState = { appId, days: 30, traffic: 'all', data: null, loading: false };
-    loadMatrix();
+    if (tab === 'observations') loadMatrix();
   }
 
   const ratingHtml = app.rating != null ? `
@@ -736,6 +933,19 @@ function renderAppDetail(appId) {
   const iconHtml = app.iconUrl
     ? `<img src="${escapeAttr(app.iconUrl)}" alt="" style="width:64px;height:64px;border-radius:14px;object-fit:cover;flex-shrink:0">`
     : `<div class="detail-head-icon" style="background: linear-gradient(135deg, ${app.colorA}, ${app.colorB})">${escapeHtml(app.name.slice(0,1).toUpperCase())}</div>`;
+
+  const activeCampaigns = app.keywords.filter(k => (k.totalInstalled || 0) > 0).length;
+  const inTop10 = app.keywords.filter(k => k.currentPos != null && k.currentPos <= 10).length;
+
+  // Tab content
+  let tabContent = '';
+  if (tab === 'overview') {
+    tabContent = renderAppOverview(app);
+  } else if (tab === 'campaigns') {
+    tabContent = renderAppCampaigns(app);
+  } else { // observations (default)
+    tabContent = renderAppObservations(app);
+  }
 
   return `
     <div class="page">
@@ -763,44 +973,179 @@ function renderAppDetail(appId) {
         </div>
       </div>
 
-      <div class="card" style="padding:0;">
-        <div class="matrix-toolbar">
-          <div class="seg" role="tablist" aria-label="Период">
-            <button class="${_matrixState.days === 7  ? 'active' : ''}" onclick="setMatrixDays(7)">7 дней</button>
-            <button class="${_matrixState.days === 30 ? 'active' : ''}" onclick="setMatrixDays(30)">30 дней</button>
-            <button class="${_matrixState.days === 60 ? 'active' : ''}" onclick="setMatrixDays(60)">60 дней</button>
-          </div>
-          <button class="btn btn-primary btn-sm" onclick="openAddKw('${app.id}')">+ Добавить ключ</button>
-          <span class="stat">Запросов: <b>${app.keywords.length}</b></span>
-        </div>
-        <div class="matrix-legend">
-          <span>Цвет ячейки:</span>
-          <span class="lg-chip"><span class="lg-sw top10"></span>топ-10</span>
-          <span class="lg-chip"><span class="lg-sw top30"></span>11–30</span>
-          <span class="lg-chip"><span class="lg-sw top100"></span>31–100</span>
-          <span class="lg-chip"><span class="lg-sw deep"></span>101+</span>
-          <span class="lg-chip"><span class="lg-sw none"></span>нет данных</span>
-        </div>
-        <div id="matrixBody">
-          ${app.keywords.length === 0
-            ? `<div class="empty" style="padding:48px 24px;">
-                <div class="empty-title">Нет отслеживаемых ключей</div>
-                <div class="empty-text">Добавьте ключевые слова — позиции в App Store подтянутся автоматически.</div>
-                <button class="btn btn-primary" onclick="openAddKw('${app.id}')">+ Добавить первый ключ</button>
-              </div>`
-            : `<div class="empty" style="padding:32px;color:var(--ink-3);">Загружаем матрицу позиций…</div>`}
-        </div>
+      <div class="tabs">
+        <button class="tab ${tab === 'overview' ? 'active' : ''}" onclick="goPage('app','${app.id}/overview')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Обзор
+        </button>
+        <button class="tab ${tab === 'observations' ? 'active' : ''}" onclick="goPage('app','${app.id}/observations')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><polyline points="7 14 11 10 15 13 21 7"/></svg>
+          Наблюдения
+          ${app.keywords.length ? `<span class="tab-badge">${app.keywords.length}</span>` : ''}
+        </button>
+        <button class="tab ${tab === 'campaigns' ? 'active' : ''}" onclick="goPage('app','${app.id}/campaigns')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Кампании
+          ${activeCampaigns ? `<span class="tab-badge">${activeCampaigns}</span>` : ''}
+        </button>
       </div>
 
-      ${app.keywords.length > 0 ? `
-        <div style="margin-top: 24px;">
-          <div class="page-subtitle" style="margin-bottom: 12px;">/ Заказ установок</div>
-          <div class="hint">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            <div><b>Как продвигать ключ.</b> Нажмите на&nbsp;ключ в&nbsp;матрице → откроется планировщик установок по&nbsp;дням. Списания идут с&nbsp;баланса по&nbsp;вашему тарифу.</div>
-          </div>
-        </div>` : ''}
+      ${tabContent}
     </div>`;
+}
+
+function renderAppOverview(app) {
+  const inTop10  = app.keywords.filter(k => k.currentPos != null && k.currentPos <= 10).length;
+  const inTop30  = app.keywords.filter(k => k.currentPos != null && k.currentPos > 10 && k.currentPos <= 30).length;
+  const out      = app.keywords.filter(k => k.currentPos == null || k.currentPos > 100).length;
+  const totalInstalled = app.keywords.reduce((s, k) => s + (k.totalInstalled || 0), 0);
+
+  return `
+    <div class="stat-grid">
+      <div class="stat-c"><div class="stat-c-lbl">Ключей в работе</div><div class="stat-c-val">${app.keywords.length}</div><div class="stat-c-sub">всего отслеживаем</div></div>
+      <div class="stat-c"><div class="stat-c-lbl">В топ-10</div><div class="stat-c-val accent">${inTop10}</div><div class="stat-c-sub green">${app.keywords.length ? Math.round(inTop10/app.keywords.length*100) : 0}%</div></div>
+      <div class="stat-c"><div class="stat-c-lbl">11–30</div><div class="stat-c-val">${inTop30}</div><div class="stat-c-sub">средний топ</div></div>
+      <div class="stat-c"><div class="stat-c-lbl">Установок куплено</div><div class="stat-c-val">${formatNum(totalInstalled)}</div><div class="stat-c-sub">за всё время</div></div>
+    </div>
+
+    ${app.url ? `<div class="hint">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      <div>App Store: <a href="${escapeAttr(app.url)}" target="_blank" style="color:var(--jade); word-break:break-all;">${escapeHtml(app.url)}</a></div>
+    </div>` : ''}
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Что дальше?</div>
+      </div>
+      <div class="card-body">
+        <div class="qa-grid" style="margin-bottom:0;">
+          <div class="qa-card" onclick="goPage('app', '${app.id}/observations')">
+            <div class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><polyline points="7 14 11 10 15 13 21 7"/></svg></div>
+            <div class="qa-title">Посмотреть позиции</div>
+            <div class="qa-desc">Матрица за&nbsp;30 дней — где растём, где падаем, по&nbsp;каким ключам стоит толкать.</div>
+            <div class="qa-arrow">К&nbsp;матрице →</div>
+          </div>
+          <div class="qa-card" onclick="openAddKw('${app.id}')">
+            <div class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+            <div class="qa-title">Добавить ключ</div>
+            <div class="qa-desc">Подключи ещё один поисковый запрос — позиция и&nbsp;история подтянутся за&nbsp;5&nbsp;секунд.</div>
+            <div class="qa-arrow">+ Ключ →</div>
+          </div>
+          <div class="qa-card" onclick="goPage('app', '${app.id}/campaigns')">
+            <div class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+            <div class="qa-title">Запустить кампанию</div>
+            <div class="qa-desc">Заплатить за&nbsp;установки и&nbsp;поднять позицию по&nbsp;нужному ключу. От&nbsp;$0.13&nbsp;за&nbsp;установку.</div>
+            <div class="qa-arrow">Запустить →</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderAppObservations(app) {
+  return `
+    <div class="card" style="padding:0;">
+      <div class="matrix-toolbar">
+        <div class="seg" role="tablist" aria-label="Период">
+          <button class="${_matrixState.days === 7  ? 'active' : ''}" onclick="setMatrixDays(7)">7 дней</button>
+          <button class="${_matrixState.days === 30 ? 'active' : ''}" onclick="setMatrixDays(30)">30 дней</button>
+          <button class="${_matrixState.days === 60 ? 'active' : ''}" onclick="setMatrixDays(60)">60 дней</button>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openAddKw('${app.id}')">+ Добавить ключ</button>
+        <span class="stat">Запросов: <b>${app.keywords.length}</b></span>
+      </div>
+      <div class="matrix-legend">
+        <span>Цвет ячейки:</span>
+        <span class="lg-chip"><span class="lg-sw top10"></span>топ-10</span>
+        <span class="lg-chip"><span class="lg-sw top30"></span>11–30</span>
+        <span class="lg-chip"><span class="lg-sw top100"></span>31–100</span>
+        <span class="lg-chip"><span class="lg-sw deep"></span>101+</span>
+        <span class="lg-chip"><span class="lg-sw none"></span>нет данных</span>
+      </div>
+      <div id="matrixBody">
+        ${app.keywords.length === 0
+          ? `<div class="empty">
+              <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><polyline points="7 14 11 10 15 13 21 7"/></svg>
+              <div class="empty-title">Нет отслеживаемых ключей</div>
+              <div class="empty-text">Добавь поисковые запросы — мы&nbsp;сразу подтянем текущие позиции и&nbsp;историю за&nbsp;30&nbsp;дней из&nbsp;App Store.</div>
+              <button class="btn btn-primary" onclick="openAddKw('${app.id}')">+ Добавить первый ключ</button>
+            </div>`
+          : `<div class="empty" style="padding:32px;color:var(--ink-3);">Загружаем матрицу позиций…</div>`}
+      </div>
+    </div>`;
+}
+
+function renderAppCampaigns(app) {
+  const activeKw = app.keywords.filter(k => (k.totalInstalled || 0) > 0);
+  const totalInstalled = app.keywords.reduce((s, k) => s + (k.totalInstalled || 0), 0);
+
+  if (app.keywords.length === 0) {
+    return `<div class="card"><div class="card-body"><div class="empty">
+      <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      <div class="empty-title">Сначала нужны ключи</div>
+      <div class="empty-text">Чтобы запустить кампанию — добавь хотя&nbsp;бы один поисковый запрос. После этого сможешь заказать установки на&nbsp;него.</div>
+      <button class="btn btn-primary" onclick="openAddKw('${app.id}')">+ Добавить ключ</button>
+    </div></div></div>`;
+  }
+
+  return `
+    <div class="hint">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <div>
+        <b>Что это?</b> Кампания — это <b>заказ установок</b> по&nbsp;конкретному ключу для поднятия позиции в&nbsp;App Store.
+        Цена зависит от&nbsp;твоего тарифа (см. «Пополнить»).
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          ${activeKw.length > 0
+            ? `Активные кампании <span class="badge">${activeKw.length}</span>`
+            : 'Запустить кампанию'}
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openAddKw('${app.id}')">+ Добавить ключ</button>
+      </div>
+      <div class="card-body dense">
+        <div class="table-wrap"><table class="tbl">
+          <thead><tr>
+            <th>Ключ</th>
+            <th>Тек. позиция</th>
+            <th>Цель</th>
+            <th>Установлено</th>
+            <th>Тариф</th>
+            <th>Действие</th>
+          </tr></thead>
+          <tbody>${app.keywords.map(k => `
+            <tr>
+              <td><b style="color:var(--ink)">${escapeHtml(k.name)}</b></td>
+              <td class="num ${posTextClass(k.currentPos)}">${k.currentPos != null ? '#' + k.currentPos : '—'}</td>
+              <td class="num green">#${k.targetPos || '—'}</td>
+              <td class="num ${(k.totalInstalled||0) > 0 ? 'green' : ''}">${formatNum(k.totalInstalled || 0)}</td>
+              <td class="mono" style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--ink-2);">${escapeHtml(k.planTier || 'standard')}</td>
+              <td>
+                ${(k.totalInstalled||0) > 0
+                  ? `<button class="btn btn-ghost btn-sm" onclick="openInstallsForKw('${k.id}')">Управлять →</button>`
+                  : `<button class="btn btn-primary btn-sm" onclick="openInstallsForKw('${k.id}')">▶ Запустить</button>`}
+              </td>
+            </tr>`).join('')}</tbody>
+        </table></div>
+      </div>
+    </div>
+
+    ${totalInstalled > 0 ? `
+      <div class="stat-grid">
+        <div class="stat-c">
+          <div class="stat-c-lbl">Установлено всего</div>
+          <div class="stat-c-val accent">${formatNum(totalInstalled)}</div>
+          <div class="stat-c-sub">по&nbsp;${activeKw.length} ${activeKw.length === 1 ? 'ключу' : 'ключам'}</div>
+        </div>
+        <div class="stat-c">
+          <div class="stat-c-lbl">Баланс</div>
+          <div class="stat-c-val">$${formatNum(data.balance)}</div>
+          <div class="stat-c-sub">${data.balance > 0 ? 'хватит на&nbsp;запуски' : 'нужно пополнить'}</div>
+        </div>
+      </div>` : ''}`;
 }
 
 async function loadMatrix() {
