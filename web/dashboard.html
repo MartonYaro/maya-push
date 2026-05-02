@@ -1506,6 +1506,97 @@
 
   .matrix-tbl tbody td.col-trend { padding: 8px 12px; }
 
+  /* Install scheduler */
+  .sched-head {
+    display: grid; grid-template-columns: 1fr auto; gap: 12px;
+    padding: 14px 16px; background: var(--bg-3); border: 1px solid var(--line);
+    margin-bottom: 18px;
+  }
+  .sched-head .sh-title { font-size: 16px; font-weight: 700; color: var(--ink); }
+  .sched-head .sh-meta {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--ink-3); margin-top: 4px; letter-spacing: 0.06em;
+  }
+  .sched-head .sh-pos { text-align: right; font-family: 'JetBrains Mono', monospace; }
+  .sched-head .sh-pos .lab { font-size: 10px; color: var(--ink-3); letter-spacing: 0.1em; text-transform: uppercase; }
+  .sched-head .sh-pos .val { font-size: 20px; color: var(--ink); font-weight: 700; }
+  .sched-head .sh-pos .val.green { color: var(--jade); }
+
+  .sched-presets {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px;
+  }
+  .sched-preset {
+    padding: 8px 14px; border: 1px solid var(--line-2); cursor: pointer;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--ink-2); letter-spacing: 0.06em; text-transform: uppercase;
+    transition: all 0.15s;
+  }
+  .sched-preset:hover { border-color: var(--jade); color: var(--jade); }
+  .sched-preset.active { background: var(--jade); color: var(--bg); border-color: var(--jade); font-weight: 700; }
+
+  .sched-grid {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    gap: 6px; margin-top: 8px;
+  }
+  .sched-day {
+    padding: 10px 6px;
+    background: var(--bg-2); border: 1px solid var(--line);
+    text-align: center; cursor: pointer;
+    transition: all 0.15s; position: relative;
+  }
+  .sched-day .sd-date {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: var(--ink-3); letter-spacing: 0.05em;
+  }
+  .sched-day .sd-input {
+    width: 100%; text-align: center; font-family: 'JetBrains Mono', monospace;
+    font-size: 14px; font-weight: 700; color: var(--ink);
+    background: transparent; border: none; outline: none; padding: 4px 0;
+    margin-top: 4px;
+  }
+  .sched-day:hover { border-color: var(--jade); }
+  .sched-day.has-value { background: var(--jade-soft); border-color: var(--line-jade); }
+  .sched-day.has-value .sd-input { color: var(--jade); }
+  .sched-day.weekend .sd-date { color: var(--ochre); opacity: 0.7; }
+  .sched-day.today { outline: 1px solid var(--jade); outline-offset: -2px; }
+
+  .sched-summary {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    padding: 14px 16px; margin-top: 18px;
+    background: var(--bg-2); border: 1px solid var(--line);
+  }
+  .sched-summary .ss-c { text-align: center; }
+  .sched-summary .ss-lbl { font-size: 10px; color: var(--ink-3); letter-spacing: 0.1em; text-transform: uppercase; }
+  .sched-summary .ss-val { font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 700; color: var(--ink); margin-top: 4px; }
+  .sched-summary .ss-val.green { color: var(--jade); }
+  .sched-summary .ss-val.red { color: var(--cinnabar); }
+
+  /* Matrix filters */
+  .matrix-toolbar .filter-chips {
+    display: inline-flex; gap: 4px; margin-left: 8px; flex-wrap: wrap;
+  }
+  .filter-chip {
+    padding: 4px 10px; font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-3); background: transparent;
+    border: 1px solid var(--line-2); cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filter-chip:hover { color: var(--ink); border-color: var(--line-2); }
+  .filter-chip.active { background: var(--jade); color: var(--bg); border-color: var(--jade); font-weight: 700; }
+
+  .matrix-toolbar .search-wrap {
+    margin-left: auto;
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--bg-3); border: 1px solid var(--line-2);
+    padding: 6px 12px; min-width: 200px;
+  }
+  .matrix-toolbar .search-wrap input {
+    flex: 1; background: transparent; border: none; outline: none;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--ink);
+  }
+  .matrix-toolbar .search-wrap svg { width: 14px; height: 14px; color: var(--ink-3); flex-shrink: 0; }
+
   /* ─────── RESPONSIVE ─────── */
   @media (max-width: 1100px) {
     .stat-grid { grid-template-columns: repeat(2, 1fr); }
@@ -1793,6 +1884,26 @@
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('addKwModal')">Отмена</button>
       <button class="btn btn-primary" onclick="submitAddKw()">Добавить</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Install scheduler (запустить кампанию по ключу) -->
+<div class="modal-bg" id="installsModal">
+  <div class="modal" style="max-width: 720px;">
+    <div class="modal-head">
+      <div class="modal-title" id="installsTitle">Запустить кампанию</div>
+      <button class="modal-close" onclick="closeModal('installsModal')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="installsBody">
+      <!-- filled dynamically -->
+    </div>
+    <div class="modal-foot">
+      <div id="installsCost" style="margin-right:auto; font-family:'JetBrains Mono', monospace; font-size:13px; color:var(--ink-2);"></div>
+      <button class="btn btn-ghost" onclick="closeModal('installsModal')">Отмена</button>
+      <button class="btn btn-primary" id="installsSubmit" onclick="submitInstalls()">Запланировать</button>
     </div>
   </div>
 </div>

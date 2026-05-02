@@ -906,7 +906,7 @@ function renderHistory() {
    APP DETAIL — AppBooster-style position matrix
    ───────────────────────────────────────────────────── */
 
-let _matrixState = { appId: null, days: 30, traffic: 'all', data: null, loading: false };
+let _matrixState = { appId: null, days: 30, filter: 'all', search: '', data: null, loading: false };
 
 function renderAppDetail(appId, tab = 'observations') {
   const app = data.apps.find(a => a.id === appId);
@@ -919,7 +919,7 @@ function renderAppDetail(appId, tab = 'observations') {
 
   // Lazy-load matrix on first paint or when app/tab changes
   if (_matrixState.appId !== appId) {
-    _matrixState = { appId, days: 30, traffic: 'all', data: null, loading: false };
+    _matrixState = { appId, days: 30, filter: 'all', search: '', data: null, loading: false };
     if (tab === 'observations') loadMatrix();
   }
 
@@ -1051,8 +1051,20 @@ function renderAppObservations(app) {
           <button class="${_matrixState.days === 30 ? 'active' : ''}" onclick="setMatrixDays(30)">30 дней</button>
           <button class="${_matrixState.days === 60 ? 'active' : ''}" onclick="setMatrixDays(60)">60 дней</button>
         </div>
-        <button class="btn btn-primary btn-sm" onclick="openAddKw('${app.id}')">+ Добавить ключ</button>
-        <span class="stat">Запросов: <b>${app.keywords.length}</b></span>
+        <div class="filter-chips">
+          <button class="filter-chip ${_matrixState.filter==='all'?'active':''}" onclick="setMatrixFilter('all')">Все</button>
+          <button class="filter-chip ${_matrixState.filter==='top10'?'active':''}" onclick="setMatrixFilter('top10')">топ-10</button>
+          <button class="filter-chip ${_matrixState.filter==='top30'?'active':''}" onclick="setMatrixFilter('top30')">11–30</button>
+          <button class="filter-chip ${_matrixState.filter==='top100'?'active':''}" onclick="setMatrixFilter('top100')">31–100</button>
+          <button class="filter-chip ${_matrixState.filter==='out'?'active':''}" onclick="setMatrixFilter('out')">вне топа</button>
+          <button class="filter-chip ${_matrixState.filter==='improved'?'active':''}" onclick="setMatrixFilter('improved')">↑ выросли</button>
+          <button class="filter-chip ${_matrixState.filter==='dropped'?'active':''}" onclick="setMatrixFilter('dropped')">↓ упали</button>
+        </div>
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="search" placeholder="поиск по ключу…" value="${escapeAttr(_matrixState.search)}" oninput="setMatrixSearch(this.value)">
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openAddKw('${app.id}')">+ Ключ</button>
       </div>
       <div class="matrix-legend">
         <span>Цвет ячейки:</span>
@@ -1176,12 +1188,58 @@ function setMatrixDays(d) {
   loadMatrix();
 }
 
+function setMatrixFilter(f) {
+  _matrixState.filter = f;
+  document.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active'));
+  const btn = [...document.querySelectorAll('.filter-chip')]
+    .find(b => b.getAttribute('onclick')?.includes(`'${f}'`));
+  if (btn) btn.classList.add('active');
+  paintMatrix();
+}
+
+let _matrixSearchTimer = null;
+function setMatrixSearch(q) {
+  clearTimeout(_matrixSearchTimer);
+  _matrixSearchTimer = setTimeout(() => {
+    _matrixState.search = (q || '').trim().toLowerCase();
+    paintMatrix();
+  }, 150);
+}
+
+function applyMatrixFilters(keywords) {
+  const { filter, search } = _matrixState;
+  return keywords.filter(k => {
+    if (search && !String(k.term).toLowerCase().includes(search)) return false;
+    const cur = k.current_pos;
+    switch (filter) {
+      case 'top10':    return cur != null && cur <= 10;
+      case 'top30':    return cur != null && cur > 10 && cur <= 30;
+      case 'top100':   return cur != null && cur > 30 && cur <= 100;
+      case 'out':      return cur == null || cur > 100;
+      case 'improved': return k.trend != null && k.trend < 0;
+      case 'dropped':  return k.trend != null && k.trend > 0;
+      default:         return true;
+    }
+  });
+}
+
 function paintMatrix() {
   const el = document.getElementById('matrixBody');
   if (!el || !_matrixState.data) return;
-  const { dates, keywords } = _matrixState.data;
-  if (!keywords.length) {
+  const { dates } = _matrixState.data;
+  const allKeywords = _matrixState.data.keywords;
+  const keywords = applyMatrixFilters(allKeywords);
+
+  if (!allKeywords.length) {
     el.innerHTML = `<div class="empty" style="padding:48px 24px;"><div class="empty-title">Нет ключевых слов</div></div>`;
+    return;
+  }
+  if (!keywords.length) {
+    el.innerHTML = `<div class="empty" style="padding:48px 24px;">
+      <div class="empty-title">Ничего не найдено</div>
+      <div class="empty-text">Под фильтр «${escapeHtml(_matrixState.filter)}»${_matrixState.search ? ` и поиск «${escapeHtml(_matrixState.search)}»` : ''} нет ни&nbsp;одного ключа.</div>
+      <button class="btn btn-ghost btn-sm" onclick="setMatrixFilter('all'); setMatrixSearch('')">Сбросить фильтры</button>
+    </div>`;
     return;
   }
 
@@ -1275,9 +1333,189 @@ async function syncAppNow(appId) {
   }
 }
 
-function openInstallsForKw(kwId) {
-  // Placeholder for future installs scheduler modal
-  toast('Планировщик установок — в разработке. Используйте matrix для мониторинга.');
+/* ─────────────────────────────────────────────────────
+   INSTALL SCHEDULER MODAL
+   ───────────────────────────────────────────────────── */
+
+let _scheduler = {
+  appId: null, kwId: null, kw: null, app: null,
+  days: 7,             // окно в днях
+  perDay: {},          // {date: count}
+  existing: {},        // {date: {count,status}} — то что уже было
+};
+
+async function openInstallsForKw(kwId) {
+  // find the keyword + parent app
+  let app = null, kw = null;
+  for (const a of data.apps) {
+    const found = a.keywords.find(k => k.id === kwId);
+    if (found) { app = a; kw = found; break; }
+  }
+  if (!app || !kw) return toast('Ключ не найден', 'error');
+
+  _scheduler = { appId: app.id, kwId: kw.id, kw, app, days: 7, perDay: {}, existing: {} };
+  // Pull existing scheduled installs from API
+  try {
+    const r = await API.keywordInstalls(kw.apiId);
+    for (const row of (r.installs || [])) {
+      _scheduler.existing[row.date] = { count: row.count, status: row.status };
+    }
+  } catch {}
+  paintScheduler();
+  openModal('installsModal');
+}
+
+function paintScheduler() {
+  const { kw, app, days, perDay, existing } = _scheduler;
+  const tier = PRICING_TIERS.find(t => t.id === (kw.planTier || 'standard')) || PRICING_TIERS[0];
+  const price = tier.pricePerInstall || 0.30;
+
+  document.getElementById('installsTitle').textContent = `Кампания: ${kw.name}`;
+
+  // dates window: starting today
+  const dates = [];
+  const today = new Date();
+  for (let i = 0; i < days; i++) {
+    const d = new Date(today); d.setDate(d.getDate() + i);
+    dates.push(d.toISOString().slice(0, 10));
+  }
+  const todayStr = today.toISOString().slice(0, 10);
+
+  const totalNew = Object.values(perDay).reduce((s, x) => s + (parseInt(x, 10) || 0), 0);
+  const totalCost = +(totalNew * price).toFixed(2);
+
+  const body = `
+    <div class="sched-head">
+      <div>
+        <div class="sh-title">${escapeHtml(kw.name)}</div>
+        <div class="sh-meta">${escapeHtml(app.name)} · ${escapeHtml(app.geo)} · тариф: ${escapeHtml(tier.name)} · $${price.toFixed(2)} / установка</div>
+      </div>
+      <div class="sh-pos">
+        <div class="lab">Текущая → Цель</div>
+        <div class="val">${kw.currentPos != null ? '#' + kw.currentPos : '—'} → <span class="green">#${kw.targetPos}</span></div>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 14px; font-size: 13px; color: var(--ink-2);">
+      Сколько установок раздать каждый день? Можешь воспользоваться быстрыми кнопками или вписать своё число в&nbsp;каждый день.
+    </div>
+
+    <div class="sched-presets">
+      <div class="sched-preset" onclick="schedFill(0)">Очистить</div>
+      <div class="sched-preset" onclick="schedFill(50)">50/день</div>
+      <div class="sched-preset" onclick="schedFill(100)">100/день</div>
+      <div class="sched-preset" onclick="schedFill(200)">200/день</div>
+      <div class="sched-preset" onclick="schedFill(500)">500/день</div>
+      <div class="sched-preset" onclick="schedSetWindow(7)" style="${days===7 ? 'background:var(--bg-3)':''}">7 дней</div>
+      <div class="sched-preset" onclick="schedSetWindow(14)" style="${days===14 ? 'background:var(--bg-3)':''}">14 дней</div>
+      <div class="sched-preset" onclick="schedSetWindow(30)" style="${days===30 ? 'background:var(--bg-3)':''}">30 дней</div>
+    </div>
+
+    <div class="sched-grid">
+      ${dates.map(d => {
+        const dt = new Date(d + 'T00:00:00Z');
+        const dow = dt.getUTCDay();
+        const isWk = (dow === 0 || dow === 6);
+        const ex = existing[d];
+        const val = perDay[d] != null ? perDay[d] : (ex ? ex.count : '');
+        const label = dt.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' });
+        return `<div class="sched-day ${val ? 'has-value' : ''} ${isWk ? 'weekend' : ''} ${d === todayStr ? 'today' : ''}">
+          <div class="sd-date">${label}${ex ? ` · ${ex.status === 'done' ? 'выполнено' : 'запланировано'}` : ''}</div>
+          <input type="number" min="0" max="9999" class="sd-input" data-date="${d}"
+            value="${val}" placeholder="0"
+            oninput="schedDayChange('${d}', this.value)">
+        </div>`;
+      }).join('')}
+    </div>
+
+    <div class="sched-summary">
+      <div class="ss-c">
+        <div class="ss-lbl">Всего установок</div>
+        <div class="ss-val">${formatNum(totalNew)}</div>
+      </div>
+      <div class="ss-c">
+        <div class="ss-lbl">Стоимость</div>
+        <div class="ss-val ${totalCost > data.balance ? 'red' : 'green'}">$${formatNum(totalCost)}</div>
+      </div>
+      <div class="ss-c">
+        <div class="ss-lbl">Баланс после</div>
+        <div class="ss-val ${(data.balance - totalCost) < 0 ? 'red' : ''}">$${formatNum(Math.max(0, data.balance - totalCost))}</div>
+      </div>
+    </div>
+  `;
+  document.getElementById('installsBody').innerHTML = body;
+
+  const submit = document.getElementById('installsSubmit');
+  submit.disabled = totalNew === 0 || totalCost > data.balance;
+  if (totalCost > data.balance) {
+    submit.textContent = 'Недостаточно баланса';
+  } else if (totalNew === 0) {
+    submit.textContent = 'Укажи количество';
+  } else {
+    submit.textContent = `Запланировать на $${formatNum(totalCost)}`;
+  }
+  document.getElementById('installsCost').textContent = `$${price.toFixed(2)} × ${formatNum(totalNew)} = $${formatNum(totalCost)}`;
+}
+
+function schedDayChange(date, value) {
+  const v = parseInt(value, 10);
+  if (!v || v <= 0) delete _scheduler.perDay[date];
+  else _scheduler.perDay[date] = v;
+  paintScheduler();
+  // restore focus
+  setTimeout(() => {
+    const el = document.querySelector(`.sd-input[data-date="${date}"]`);
+    if (el) { el.focus(); const len = el.value.length; el.setSelectionRange(len, len); }
+  }, 10);
+}
+
+function schedFill(count) {
+  const today = new Date();
+  for (let i = 0; i < _scheduler.days; i++) {
+    const d = new Date(today); d.setDate(d.getDate() + i);
+    const key = d.toISOString().slice(0, 10);
+    if (count > 0) _scheduler.perDay[key] = count;
+    else delete _scheduler.perDay[key];
+  }
+  paintScheduler();
+}
+
+function schedSetWindow(days) {
+  _scheduler.days = days;
+  paintScheduler();
+}
+
+async function submitInstalls() {
+  const entries = Object.entries(_scheduler.perDay).filter(([_, v]) => v > 0);
+  if (!entries.length) return;
+  const submit = document.getElementById('installsSubmit');
+  submit.disabled = true;
+  submit.textContent = 'Создаём…';
+
+  let okCount = 0, fail = 0;
+  for (const [date, count] of entries) {
+    try {
+      const r = await API.setInstalls(_scheduler.kw.apiId, date, count);
+      data.balance = r.balance;
+      okCount++;
+    } catch (e) {
+      fail++;
+      if (e.message === 'insufficient_balance') break;
+    }
+  }
+  refreshUserUI();
+  closeModal('installsModal');
+  if (okCount) {
+    toast(`✓ Кампания запущена: ${okCount} ${okCount === 1 ? 'день' : 'дней'}`);
+  }
+  if (fail) toast(`Не удалось создать ${fail} записей`, 'error');
+
+  // refresh keyword data
+  try {
+    const lr = await API.listByApp(_scheduler.app.apiId);
+    _scheduler.app.keywords = (lr.keywords || []).map(mapKeyword);
+  } catch {}
+  routeFromHash();
 }
 
 function renderAsoTable(app, days) {
