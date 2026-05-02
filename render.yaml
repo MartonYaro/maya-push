@@ -1,0 +1,27 @@
+# Render Blueprint — one-click deploy.
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: maya-push
+    runtime: node
+    plan: free
+    region: frankfurt
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node src/index.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: APPTWEAK_API_KEY
+        sync: false           # set in Render dashboard
+      - key: APPTWEAK_BASE_URL
+        value: https://public-api.apptweak.com
+      - key: POSITION_CRON
+        value: "0 */6 * * *"
+      - key: ALLOW_ORIGIN
+        value: "*"
+      - key: DB_PATH
+        value: /tmp/maya.db
