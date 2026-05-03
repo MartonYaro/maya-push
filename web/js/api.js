@@ -39,6 +39,7 @@
     register: (data) => request('POST', '/auth/register', data),
     login:    (email, password)         => request('POST', '/auth/login',    { email, password }),
     me:       ()                         => request('GET',  '/auth/me'),
+    updateProfile: (data)                => request('PATCH','/auth/me', data),
     forgot:   (email)                    => request('POST', '/auth/forgot',  { email }),
     resetPassword: (token, password)     => request('POST', '/auth/reset',   { token, password }),
     resendVerification: ()               => request('POST', '/auth/resend-verification'),
@@ -70,7 +71,8 @@
 
     // transactions
     listTransactions: () => request('GET', '/transactions'),
-    topup:    (amount, method, comment) => request('POST', '/transactions/topup', { amount, method, comment }),
+    topup:    (amount, method, comment, telegram) =>
+      request('POST', '/transactions/topup', { amount, method, comment, telegram }),
     confirmTx: (id) => request('POST', '/transactions/' + id + '/confirm'),
 
     // dashboard

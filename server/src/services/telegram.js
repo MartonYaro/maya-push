@@ -67,10 +67,14 @@ export function tgNewSignup({ user, ip, ua }) {
 
 export function tgNewTopup({ user, amount, method, comment, txId }) {
   const adminLink = publicUrl('/admin');
+  const tgHandle = user.telegram
+    ? `<a href="https://t.me/${tgEscape(user.telegram)}">@${tgEscape(user.telegram)}</a>`
+    : '<i>не указан</i>';
   return `💰 <b>Заявка на пополнение</b>
 
 👤 ${tgEscape(user.name)}
 ✉️ <code>${tgEscape(user.email)}</code>
+💬 TG: ${tgHandle}
 🆔 user #${user.id}
 
 💵 Сумма: <b>${fmtMoney(amount)}</b>
@@ -78,6 +82,10 @@ export function tgNewTopup({ user, amount, method, comment, txId }) {
 📝 ${tgEscape(comment || '—')}
 
 🧾 TX #${txId}
+
+<i>👉 Напиши клиенту в TG с реквизитами кошелька.
+После того как он переведёт — подтверди в админке.</i>
+
 🔗 <a href="${adminLink}">Открыть админку</a>`;
 }
 

@@ -25,10 +25,26 @@ router.get('/', (req, res) => {
 router.post('/topup',
   rateLimit({ windowMs: 60 * 60_000, max: 10, keyName: 'user' }),
   async (req, res) => {
-    const { amount, method, comment } = req.body || {};
+    const { amount, method, comment, telegram } = req.body || {};
     const a = Math.max(0, parseFloat(amount) || 0);
     if (a < 1500) return res.status(400).json({ error: 'min_topup_1500' });
     if (a > 1_000_000) return res.status(400).json({ error: 'max_topup_exceeded' });
+
+    // Require a Telegram contact — manager DMs the user with payment details
+    let userRow = db.prepare('SELECT id, email, name, telegram FROM users WHERE id = ?').get(req.user.id);
+    if (telegram) {
+      let tg = String(telegram).trim().replace(/^@/, '').replace(/^https?:\/\/(t\.me|telegram\.me)\//i, '');
+      if (!/^[a-zA-Z0-9_]{4,32}$/.test(tg)) {
+        return res.status(400).json({ error: 'invalid_telegram' });
+      }
+      if (tg !== userRow.telegram) {
+        db.prepare('UPDATE users SET telegram = ? WHERE id = ?').run(tg, req.user.id);
+        userRow = { ...userRow, telegram: tg };
+      }
+    }
+    if (!userRow.telegram) {
+      return res.status(400).json({ error: 'telegram_required' });
+    }
 
     const desc = comment
       ? `Пополнение через ${method || 'manager'} — ${String(comment).slice(0, 200)}`
@@ -43,7 +59,6 @@ router.post('/topup',
 
     // Telegram notify (fire-and-forget)
     try {
-      const userRow = db.prepare('SELECT id, email, name FROM users WHERE id = ?').get(req.user.id);
       notifyAdmin(tgNewTopup({
         user: userRow, amount: a, method, comment, txId: row.id,
       })).catch(() => {});

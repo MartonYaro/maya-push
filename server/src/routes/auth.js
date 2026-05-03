@@ -132,14 +132,34 @@ router.post('/login',
    ═══════════════════════════════════════════════════ */
 
 router.get('/me', requireAuth, (req, res) => {
-  const row = db.prepare('SELECT id, email, name, role, email_verified, created_at FROM users WHERE id = ?')
-    .get(req.user.id);
+  const row = db.prepare(
+    'SELECT id, email, name, role, email_verified, telegram, created_at FROM users WHERE id = ?'
+  ).get(req.user.id);
   if (!row) return res.status(404).json({ error: 'not_found' });
   res.json({
     user: row,
     balance: getBalance(row.id),
     email_verified: !!row.email_verified,
   });
+});
+
+/** Update profile (telegram contact for now). Body: { telegram } */
+router.patch('/me', requireAuth, (req, res) => {
+  const { telegram } = req.body || {};
+  let tg = telegram == null ? null : String(telegram).trim();
+  if (tg) {
+    tg = tg.replace(/^@/, '').replace(/^https?:\/\/(t\.me|telegram\.me)\//i, '');
+    if (!/^[a-zA-Z0-9_]{4,32}$/.test(tg)) {
+      return res.status(400).json({ error: 'invalid_telegram' });
+    }
+  } else {
+    tg = null;
+  }
+  db.prepare('UPDATE users SET telegram = ? WHERE id = ?').run(tg, req.user.id);
+  const row = db.prepare(
+    'SELECT id, email, name, role, email_verified, telegram, created_at FROM users WHERE id = ?'
+  ).get(req.user.id);
+  res.json({ user: row });
 });
 
 /* ═══════════════════════════════════════════════════

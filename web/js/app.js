@@ -175,6 +175,8 @@ const AUTH_ERRORS = {
   email_verification_required: 'Подтверди email — мы отправили письмо со ссылкой',
   min_topup_1500: 'Минимальный депозит — $1500',
   max_topup_exceeded: 'Слишком большая сумма за раз',
+  telegram_required: 'Укажите ваш Telegram — менеджер напишет с реквизитами',
+  invalid_telegram: 'Неверный формат Telegram (4-32 символа: буквы, цифры, _)',
 };
 
 function authErrorMessage(err) {
@@ -973,6 +975,15 @@ function renderTopup() {
               min="1500" step="100" value="${initialAmount}"
               oninput="onTopupAmountChange()" style="font-family: 'JetBrains Mono', monospace; font-size: 16px;">
             <div class="form-help" id="topupCalc"></div>
+          </div>
+          <div class="form-row">
+            <label class="form-label">
+              Ваш Telegram <span style="color:var(--red);">*</span>
+              <span class="form-help" style="display:inline; margin-left:6px;">— менеджер напишет с реквизитами оплаты</span>
+            </label>
+            <input type="text" class="form-input" id="topupTelegram"
+              placeholder="@username" value="${data.user && data.user.telegram ? '@' + escapeAttr(data.user.telegram) : ''}"
+              style="font-family: 'JetBrains Mono', monospace;">
           </div>
           <div class="form-row">
             <label class="form-label">Комментарий менеджеру (необязательно)</label>
@@ -2236,27 +2247,40 @@ function selectTopupPreset(el, amount) {
 async function submitTopup() {
   const amount = parseInt(document.getElementById('topupCustom').value, 10) || 0;
   const comment = document.getElementById('topupComment').value.trim();
+  const tgRaw = (document.getElementById('topupTelegram').value || '').trim();
   if (amount < 1500) { toast('Минимальный депозит — $1500', 'error'); return; }
+
+  // Normalise telegram input: strip @, t.me/, https://t.me/
+  const telegram = tgRaw
+    .replace(/^@/, '')
+    .replace(/^https?:\/\/(t\.me|telegram\.me)\//i, '')
+    .trim();
+  if (!telegram) {
+    toast('Укажите ваш Telegram — менеджер напишет с реквизитами', 'error');
+    document.getElementById('topupTelegram')?.focus();
+    return;
+  }
+  if (!/^[a-zA-Z0-9_]{4,32}$/.test(telegram)) {
+    toast('Неверный формат Telegram. Пример: @yourname', 'error');
+    document.getElementById('topupTelegram')?.focus();
+    return;
+  }
+
   try {
-    const r = await API.topup(amount, 'manager', comment);
+    const r = await API.topup(amount, 'manager', comment, telegram);
     data.transactions.unshift(mapTx(r.transaction));
-    toast('Заявка создана. Менеджер свяжется в Telegram.');
-    // Демо-подтверждение через 3.5с (в проде — админка менеджера).
-    setTimeout(async () => {
-      try {
-        const c = await API.confirmTx(r.transaction.id);
-        data.balance = c.balance;
-        // refresh tx list
-        const tl = await API.listTransactions();
-        data.transactions = (tl.transactions || []).map(mapTx);
-        refreshUserUI();
-        toast('💰 Оплата подтверждена менеджером (+$' + formatNum(amount) + ')');
-        const page = (location.hash || '#dashboard').slice(1).split('/')[0];
-        if (page === 'topup') goPage('history'); else routeFromHash();
-      } catch {}
-    }, 3500);
+    if (data.user) data.user.telegram = telegram;
+    toast(`Заявка создана. Менеджер напишет в Telegram @${telegram} с реквизитами.`);
     goPage('history');
-  } catch (e) { toast('Ошибка: ' + e.message, 'error'); }
+  } catch (e) {
+    const map = {
+      telegram_required: 'Укажите ваш Telegram — менеджер напишет с реквизитами',
+      invalid_telegram: 'Неверный формат Telegram. Пример: @yourname',
+      min_topup_1500: 'Минимальный депозит — $1500',
+      max_topup_exceeded: 'Слишком большая сумма за раз',
+    };
+    toast(map[e.message] || ('Ошибка: ' + e.message), 'error');
+  }
 }
 
 /* ═══════════════════════════════════════════════════

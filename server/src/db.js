@@ -100,6 +100,7 @@ addColumnIfMissing('keywords', 'popularity', 'INTEGER');
 // Auth & ops tables (added in v0.2)
 addColumnIfMissing('users', 'email_verified', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('users', 'last_login_at', 'INTEGER');
+addColumnIfMissing('users', 'telegram', 'TEXT');
 
 // Order workflow (v0.3) — tracks supplier delivery
 addColumnIfMissing('installs', 'delivered',  'INTEGER NOT NULL DEFAULT 0');
