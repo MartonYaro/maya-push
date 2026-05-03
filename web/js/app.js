@@ -114,7 +114,7 @@ async function reloadAll() {
     API.listApps(),
     API.listTransactions(),
   ]);
-  data.user = meRes.user;
+  data.user = { ...meRes.user, email_verified: !!meRes.email_verified };
   data.balance = meRes.balance;
   data.transactions = (txRes.transactions || []).map(mapTx);
   data.apps = (appsRes.apps || []).map(mapApp);
@@ -142,15 +142,40 @@ function setAuthTab(tab) {
   document.querySelectorAll('.auth-tab').forEach(t => {
     t.classList.toggle('active', t.dataset.tab === tab);
   });
-  document.getElementById('nameRow').style.display = tab === 'register' ? 'flex' : 'none';
-  document.getElementById('authTitle').innerHTML = tab === 'login'
-    ? 'Вход в&nbsp;<span class="accent">кабинет</span>'
-    : '<span class="accent">Создать</span> аккаунт';
-  document.getElementById('authSub').textContent = tab === 'login'
-    ? '— Личный кабинет MAYA Push —'
-    : '— Регистрация в системе —';
-  document.getElementById('authSubmitBtn').textContent = tab === 'login' ? 'Войти →' : 'Создать →';
+  const isReg = tab === 'register';
+  document.getElementById('nameRow').style.display = isReg ? 'flex' : 'none';
+  document.getElementById('tosRow').style.display = isReg ? 'flex' : 'none';
+  document.getElementById('authPasswordHelp').style.display = isReg ? 'block' : 'none';
+  document.getElementById('forgotLink').style.display = isReg ? 'none' : 'inline';
+  document.getElementById('authPassword').autocomplete = isReg ? 'new-password' : 'current-password';
+  document.getElementById('authTitle').innerHTML = isReg
+    ? '<span class="accent">Создать</span> аккаунт'
+    : 'Вход в&nbsp;<span class="accent">кабинет</span>';
+  document.getElementById('authSub').textContent = isReg
+    ? '— Регистрация в системе —'
+    : '— Личный кабинет MAYA Push —';
+  document.getElementById('authSubmitBtn').textContent = isReg ? 'Создать →' : 'Войти →';
   document.getElementById('authError').classList.remove('show');
+}
+
+const AUTH_ERRORS = {
+  invalid_email: 'Неверный формат email',
+  invalid_name: 'Имя должно быть от 2 символов',
+  email_taken: 'Пользователь с таким email уже зарегистрирован',
+  invalid_credentials: 'Неверный email или пароль',
+  password_too_short: 'Пароль должен быть минимум 8 символов',
+  password_too_long: 'Пароль слишком длинный',
+  password_needs_letter: 'Пароль должен содержать букву',
+  password_needs_digit: 'Пароль должен содержать цифру',
+  must_accept_tos: 'Нужно принять условия использования',
+  missing_fields: 'Заполните все поля',
+  rate_limited: 'Слишком много попыток. Подожди немного и попробуй снова.',
+  invalid_token: 'Ссылка недействительна',
+  expired_token: 'Срок действия ссылки истёк',
+};
+
+function authErrorMessage(err) {
+  return AUTH_ERRORS[err.message] || ('Ошибка: ' + err.message);
 }
 
 async function handleAuth(e) {
@@ -158,26 +183,126 @@ async function handleAuth(e) {
   const email = document.getElementById('authEmail').value.trim().toLowerCase();
   const password = document.getElementById('authPassword').value;
   const name = document.getElementById('authName').value.trim();
+  const acceptTos = document.getElementById('acceptTos').checked;
+  const hp = document.getElementById('hpField').value;
 
   try {
     let res;
     if (currentAuthTab === 'register') {
       if (!name) return showAuthError('Укажите имя');
-      res = await API.register(email, password, name);
+      if (!acceptTos) return showAuthError('Нужно принять условия использования');
+      res = await API.register({ email, password, name, accept_tos: true, hp_field: hp });
+      if (res.token === 'noop') return; // honeypot triggered, silent
     } else {
       res = await API.login(email, password);
     }
     API.setToken(res.token);
     await enterApp();
-    toast(currentAuthTab === 'register' ? 'Добро пожаловать!' : 'Вход выполнен');
+    if (currentAuthTab === 'register') {
+      toast('Добро пожаловать! Проверь почту — мы отправили ссылку для подтверждения.');
+    } else {
+      toast('Вход выполнен');
+    }
   } catch (err) {
-    const map = {
-      email_taken: 'Пользователь с таким email уже есть',
-      invalid_credentials: 'Неверный email или пароль',
-      password_too_short: 'Пароль слишком короткий (мин. 6)',
-      missing_fields: 'Заполните все поля',
-    };
-    showAuthError(map[err.message] || ('Ошибка: ' + err.message));
+    showAuthError(authErrorMessage(err));
+  }
+}
+
+/* ─── Forgot password ─── */
+
+function openForgotModal(ev) {
+  if (ev) ev.preventDefault();
+  document.getElementById('forgotEmail').value =
+    document.getElementById('authEmail').value || '';
+  document.getElementById('forgotResult').style.display = 'none';
+  openModal('forgotModal');
+  setTimeout(() => document.getElementById('forgotEmail')?.focus(), 50);
+}
+
+async function submitForgot() {
+  const email = document.getElementById('forgotEmail').value.trim().toLowerCase();
+  if (!email) return toast('Введите email', 'error');
+  const btn = document.getElementById('forgotSubmit');
+  btn.disabled = true; btn.textContent = 'Отправляем…';
+  try {
+    await API.forgot(email);
+    const out = document.getElementById('forgotResult');
+    out.style.display = 'block';
+    out.innerHTML = '✉️ <b>Если такой email существует</b>, мы отправили ссылку для&nbsp;сброса пароля. Проверь почту (включая «Спам»).';
+    btn.textContent = 'Отправлено';
+  } catch (e) {
+    toast(authErrorMessage(e), 'error');
+    btn.disabled = false; btn.textContent = 'Отправить ссылку';
+  }
+}
+
+/* ─── Reset password (when ?reset=TOKEN) ─── */
+
+function checkResetTokenInUrl() {
+  const params = new URLSearchParams(location.search);
+  const t = params.get('reset');
+  if (t) {
+    window._resetToken = t;
+    openModal('resetModal');
+    setTimeout(() => document.getElementById('resetPassword')?.focus(), 100);
+  }
+  // Email verified redirect
+  const v = params.get('verified');
+  if (v === 'ok')      toast('✓ Email подтверждён! Аккаунт активирован.');
+  if (v === 'expired') toast('Ссылка устарела. Запросите новую.', 'error');
+  if (v === 'invalid') toast('Ссылка недействительна.', 'error');
+  if (v) cleanResetUrl();
+}
+
+function cleanResetUrl() {
+  const url = new URL(location.href);
+  url.searchParams.delete('reset');
+  url.searchParams.delete('verified');
+  history.replaceState(null, '', url.toString());
+}
+
+async function submitReset() {
+  const password = document.getElementById('resetPassword').value;
+  const errEl = document.getElementById('resetError');
+  errEl.style.display = 'none';
+  if (!password || password.length < 8) {
+    errEl.textContent = 'Минимум 8 символов'; errEl.style.display = 'block';
+    return;
+  }
+  const btn = document.getElementById('resetSubmit');
+  btn.disabled = true; btn.textContent = 'Сохраняем…';
+  try {
+    const r = await API.resetPassword(window._resetToken, password);
+    API.setToken(r.token);
+    closeModal('resetModal');
+    cleanResetUrl();
+    await enterApp();
+    toast('✓ Пароль обновлён, вход выполнен');
+  } catch (e) {
+    errEl.textContent = authErrorMessage(e);
+    errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Сменить пароль';
+  }
+}
+
+/* ─── Email verification banner ─── */
+
+async function resendVerification() {
+  try {
+    await API.resendVerification();
+    toast('Письмо отправлено повторно. Проверь почту.');
+  } catch (e) {
+    toast(authErrorMessage(e), 'error');
+  }
+}
+
+function updateVerifyBanner() {
+  const b = document.getElementById('verifyBanner');
+  if (!b || !data.user) return;
+  if (data.user.email_verified) {
+    b.style.display = 'none';
+  } else {
+    b.style.display = 'flex';
   }
 }
 
@@ -217,6 +342,7 @@ function refreshUserUI() {
   document.getElementById('userAvatar').textContent = (data.user.name || 'U').slice(0, 1).toUpperCase();
   document.getElementById('balanceTop').textContent = '$' + formatNum(data.balance);
   document.getElementById('appsCountBadge').textContent = data.apps.length;
+  updateVerifyBanner();
 }
 
 /* ═══════════════════════════════════════════════════
@@ -2150,6 +2276,7 @@ document.addEventListener('keydown', (e) => {
    ═══════════════════════════════════════════════════ */
 
 (async function init() {
+  checkResetTokenInUrl();
   if (API.isAuthed()) {
     try { await enterApp(); }
     catch { document.getElementById('authScreen').style.display = 'flex'; }

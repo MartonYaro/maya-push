@@ -25,3 +25,13 @@ services:
         value: "*"
       - key: DB_PATH
         value: /tmp/maya.db
+      - key: PUBLIC_URL
+        sync: false           # set to https://maya-push.onrender.com after first deploy
+      - key: RESEND_API_KEY
+        sync: false           # optional: emails fall back to console log if empty
+      - key: EMAIL_FROM
+        value: MAYA Push <onboarding@resend.dev>
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false           # optional
+      - key: TELEGRAM_ADMIN_CHAT
+        sync: false           # optional

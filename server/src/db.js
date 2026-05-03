@@ -97,6 +97,40 @@ addColumnIfMissing('apps', 'subtitle', 'TEXT');
 addColumnIfMissing('keywords', 'frequency', 'INTEGER');
 addColumnIfMissing('keywords', 'popularity', 'INTEGER');
 
+// Auth & ops tables (added in v0.2)
+addColumnIfMissing('users', 'email_verified', 'INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('users', 'last_login_at', 'INTEGER');
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS email_verifications (
+  token       TEXT PRIMARY KEY,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at  INTEGER NOT NULL,
+  created_at  INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS password_resets (
+  token       TEXT PRIMARY KEY,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at  INTEGER NOT NULL,
+  used        INTEGER NOT NULL DEFAULT 0,
+  created_at  INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  actor_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  action      TEXT NOT NULL,
+  meta        TEXT,
+  ip          TEXT,
+  user_agent  TEXT,
+  created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_audit_user_time   ON audit_log(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_action_time ON audit_log(action, created_at);
+`);
+
 export function getBalance(userId) {
   const row = db.prepare(
     `SELECT COALESCE(SUM(amount), 0) AS bal

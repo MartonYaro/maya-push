@@ -52,6 +52,28 @@ router.post('/transactions/:id/reject', (req, res) => {
   res.json({ transaction: row });
 });
 
+/** Audit log — last N events, optional filter by user_id / action. */
+router.get('/audit-log', (req, res) => {
+  const userId = req.query.user_id || null;
+  const action = req.query.action || null;
+  const limit = Math.min(parseInt(req.query.limit, 10) || 200, 500);
+  const where = [];
+  const args = [];
+  if (userId) { where.push('a.user_id = ?'); args.push(userId); }
+  if (action) { where.push('a.action = ?'); args.push(action); }
+  const sql = `
+    SELECT a.id, a.user_id, a.actor_id, a.action, a.meta, a.ip, a.user_agent, a.created_at,
+           u.email, u.name
+    FROM audit_log a
+    LEFT JOIN users u ON u.id = a.user_id
+    ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+    ORDER BY a.created_at DESC
+    LIMIT ?`;
+  args.push(limit);
+  const rows = db.prepare(sql).all(...args);
+  res.json({ events: rows });
+});
+
 /** Manual credit/debit by admin. Body: { user_id, amount, description } */
 router.post('/credit', (req, res) => {
   const { user_id, amount, description } = req.body || {};

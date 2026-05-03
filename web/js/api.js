@@ -36,9 +36,12 @@
     isAuthed: () => !!getToken(),
 
     // auth
-    register: (email, password, name) => request('POST', '/auth/register', { email, password, name }),
-    login:    (email, password)        => request('POST', '/auth/login',    { email, password }),
-    me:       ()                        => request('GET',  '/auth/me'),
+    register: (data) => request('POST', '/auth/register', data),
+    login:    (email, password)         => request('POST', '/auth/login',    { email, password }),
+    me:       ()                         => request('GET',  '/auth/me'),
+    forgot:   (email)                    => request('POST', '/auth/forgot',  { email }),
+    resetPassword: (token, password)     => request('POST', '/auth/reset',   { token, password }),
+    resendVerification: ()               => request('POST', '/auth/resend-verification'),
 
     // apps
     listApps:    ()       => request('GET',  '/apps'),

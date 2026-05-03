@@ -21,6 +21,7 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16) {
 }
 
 const app = express();
+app.set('trust proxy', 1);          // Render terminates TLS at edge
 app.use(cors({ origin: process.env.ALLOW_ORIGIN || '*' }));
 app.use(express.json({ limit: '1mb' }));
 
