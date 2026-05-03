@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireVerified } from '../middleware/auth.js';
 import { appTweak } from '../services/apptweak.js';
 
 const router = Router();
-router.use(requireAuth);
+router.use(requireAuth, requireVerified);
 
 /**
  * Keyword research / explorer.

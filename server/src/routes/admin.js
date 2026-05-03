@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { db, getBalance, now } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { broadcast } from '../sse.js';
+import { notifyAdmin, tgTopupConfirmed } from '../services/telegram.js';
+import { audit } from '../services/audit.js';
 
 const router = Router();
 
@@ -39,6 +41,18 @@ router.post('/transactions/:id/confirm', (req, res) => {
   db.prepare('UPDATE transactions SET status = ? WHERE id = ?').run('done', tx.id);
   const row = db.prepare('SELECT * FROM transactions WHERE id = ?').get(tx.id);
   broadcast(tx.user_id, 'transaction.updated', row);
+
+  try {
+    const userRow = db.prepare('SELECT id, email, name FROM users WHERE id = ?').get(tx.user_id);
+    notifyAdmin(tgTopupConfirmed({
+      user: userRow, amount: row.amount, txId: row.id, balance: getBalance(tx.user_id),
+    })).catch(() => {});
+    audit(req, {
+      userId: tx.user_id, actorId: req.user.id, action: 'admin.tx_confirm',
+      meta: { tx_id: row.id, amount: row.amount },
+    });
+  } catch {}
+
   res.json({ transaction: row, balance: getBalance(tx.user_id) });
 });
 
@@ -49,6 +63,14 @@ router.post('/transactions/:id/reject', (req, res) => {
   db.prepare('UPDATE transactions SET status = ? WHERE id = ?').run('rejected', tx.id);
   const row = db.prepare('SELECT * FROM transactions WHERE id = ?').get(tx.id);
   broadcast(tx.user_id, 'transaction.updated', row);
+
+  try {
+    audit(req, {
+      userId: tx.user_id, actorId: req.user.id, action: 'admin.tx_reject',
+      meta: { tx_id: row.id, amount: row.amount },
+    });
+  } catch {}
+
   res.json({ transaction: row });
 });
 

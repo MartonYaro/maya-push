@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db, now } from '../db.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireVerified } from '../middleware/auth.js';
 import { appTweak, parseAppleAppId } from '../services/apptweak.js';
 
 const router = Router();
@@ -163,7 +163,7 @@ router.post('/:id/sync', async (req, res) => {
  * Pull historical ranks (last N days) from AppTweak for all keywords of this app
  * and persist into keyword_positions. One API call, real history populated.
  */
-router.post('/:id/sync-history', async (req, res) => {
+router.post('/:id/sync-history', requireVerified, async (req, res) => {
   const days = Math.min(+req.query.days || 30, 90);
   const app = db.prepare('SELECT * FROM apps WHERE id = ? AND user_id = ?')
     .get(req.params.id, req.user.id);
@@ -205,7 +205,7 @@ router.post('/:id/sync-history', async (req, res) => {
  *
  * Query: ?withMetrics=1&limit=20
  */
-router.get('/:id/suggestions', async (req, res) => {
+router.get('/:id/suggestions', requireVerified, async (req, res) => {
   const app = db.prepare('SELECT * FROM apps WHERE id = ? AND user_id = ?')
     .get(req.params.id, req.user.id);
   if (!app) return res.status(404).json({ error: 'not_found' });

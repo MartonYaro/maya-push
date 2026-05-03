@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { db, now, getBalance } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { broadcast } from '../sse.js';
+import { notifyAdmin, tgInstallOrder, tgInstallCancelled } from '../services/telegram.js';
+import { audit } from '../services/audit.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -177,6 +179,32 @@ router.post('/:id/installs', (req, res) => {
 
   const row = db.prepare('SELECT * FROM installs WHERE keyword_id = ? AND date = ?').get(kw.id, date);
   broadcast(req.user.id, 'install.scheduled', { keyword_id: kw.id, install: row });
+
+  // Telegram notification (fire-and-forget)
+  try {
+    const userRow = db.prepare('SELECT id, email, name FROM users WHERE id = ?').get(req.user.id);
+    const appRow  = db.prepare('SELECT id, name, country FROM apps WHERE id = ?').get(kw.app_id);
+    if (c > 0) {
+      notifyAdmin(tgInstallOrder({
+        user: userRow, app: appRow, keyword: kw,
+        date, count: c, cost, balance: getBalance(req.user.id),
+      })).catch(() => {});
+      audit(req, {
+        userId: req.user.id, action: 'install.scheduled',
+        meta: { keyword_id: kw.id, app_id: kw.app_id, date, count: c, cost },
+      });
+    } else {
+      notifyAdmin(tgInstallCancelled({
+        user: userRow, app: appRow, keyword: kw,
+        date, refund: 0, balance: getBalance(req.user.id),
+      })).catch(() => {});
+      audit(req, {
+        userId: req.user.id, action: 'install.cancelled',
+        meta: { keyword_id: kw.id, app_id: kw.app_id, date },
+      });
+    }
+  } catch {}
+
   res.json({ install: row, balance: getBalance(req.user.id) });
 });
 

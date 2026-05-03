@@ -172,6 +172,9 @@ const AUTH_ERRORS = {
   rate_limited: 'Слишком много попыток. Подожди немного и попробуй снова.',
   invalid_token: 'Ссылка недействительна',
   expired_token: 'Срок действия ссылки истёк',
+  email_verification_required: 'Подтверди email — мы отправили письмо со ссылкой',
+  min_topup_1500: 'Минимальный депозит — $1500',
+  max_topup_exceeded: 'Слишком большая сумма за раз',
 };
 
 function authErrorMessage(err) {
@@ -1065,6 +1068,16 @@ function renderExplorer() {
         </div>
       </div>
 
+      ${data.user && data.user.email_verified === false ? `
+      <div class="hint" style="border-color: var(--warn, #f59e0b); background: rgba(245,158,11,0.08);">
+        <span style="font-size:18px;">🔒</span>
+        <div>
+          <b>Поиск ключей доступен после подтверждения email.</b>
+          Каждый запрос стоит нам ~13 кредитов AppTweak — мы открываем эту функцию только верифицированным пользователям.
+          <a href="#" onclick="event.preventDefault(); resendVerification();" style="color:var(--acc); text-decoration:underline;">Отправить письмо повторно</a>.
+        </div>
+      </div>` : ''}
+
       <div class="card">
         <div class="card-body">
           <form onsubmit="event.preventDefault(); doExplorerSearch();">
@@ -1221,9 +1234,13 @@ async function doExplorerSearch() {
     _explorer.recent = [keyword, ..._explorer.recent.filter(k => k !== keyword)].slice(0, 8);
     try { localStorage.setItem('maya_recent_kw', JSON.stringify(_explorer.recent)); } catch {}
   } catch (e) {
-    _explorer.error = e.message === 'apptweak_not_configured'
-      ? 'AppTweak не настроен на сервере'
-      : e.message;
+    if (e.message === 'apptweak_not_configured') {
+      _explorer.error = 'AppTweak не настроен на сервере';
+    } else if (e.message === 'email_verification_required') {
+      _explorer.error = '🔒 Подтверди email, чтобы пользоваться поиском ключей';
+    } else {
+      _explorer.error = authErrorMessage(e);
+    }
   } finally {
     _explorer.loading = false;
     document.getElementById('explorerResults').innerHTML = renderExplorerResults();
@@ -2115,8 +2132,15 @@ async function loadKwSuggestions(appId) {
       </span>
     `).join('');
     row.style.display = 'block';
-  } catch {
-    list.innerHTML = '<span style="font-size:12px; color:var(--ink-3);">не удалось загрузить</span>';
+  } catch (e) {
+    if (e && e.message === 'email_verification_required') {
+      list.innerHTML = `<span style="font-size:12px; color:var(--warn, #f59e0b);">
+        🔒 Подсказки доступны после подтверждения email.
+        <a href="#" onclick="event.preventDefault(); resendVerification();" style="color:var(--acc); text-decoration:underline;">отправить письмо повторно</a>
+      </span>`;
+    } else {
+      list.innerHTML = '<span style="font-size:12px; color:var(--ink-3);">не удалось загрузить</span>';
+    }
     row.style.display = 'block';
   }
 }
