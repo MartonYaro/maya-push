@@ -1,5 +1,9 @@
 # Render Blueprint — one-click deploy.
 # https://render.com/docs/blueprint-spec
+#
+# FREE plan: DB_PATH=/tmp/maya.db  (ephemeral — DB resets on each redeploy)
+# PAID plan: uncomment `disk:` block below and set DB_PATH=/var/data/maya.db
+#            (10 GB persistent SSD, $1/mo on Starter+)
 services:
   - type: web
     name: maya-push
@@ -10,9 +14,18 @@ services:
     buildCommand: npm install
     startCommand: node src/index.js
     healthCheckPath: /api/health
+    autoDeploy: true
+    # ─── Uncomment when upgrading to Starter ($7/mo) or higher ────────────
+    # disk:
+    #   name: maya-data
+    #   mountPath: /var/data
+    #   sizeGB: 10
+    # ──────────────────────────────────────────────────────────────────────
     envVars:
       - key: NODE_VERSION
         value: "20"
+      - key: NODE_ENV
+        value: production
       - key: JWT_SECRET
         generateValue: true
       - key: APPTWEAK_API_KEY
@@ -24,7 +37,7 @@ services:
       - key: ALLOW_ORIGIN
         value: "*"
       - key: DB_PATH
-        value: /tmp/maya.db
+        value: /tmp/maya.db   # ← change to /var/data/maya.db after enabling disk
       - key: PUBLIC_URL
         sync: false           # set to https://maya-push.onrender.com after first deploy
       - key: RESEND_API_KEY
