@@ -281,6 +281,7 @@ async function routeFromHash() {
     dashboard: 'Дашборд',
     apps: 'Приложения',
     observations: 'Наблюдения за позициями',
+    explorer: 'Поиск ключей',
     campaigns: 'Активные кампании',
     topup: 'Пополнить баланс',
     history: 'История операций',
@@ -305,6 +306,7 @@ async function routeFromHash() {
         dashboard: renderDashboard,
         apps: renderApps,
         observations: renderObservations,
+        explorer: renderExplorer,
         campaigns: renderCampaigns,
         topup: renderTopup,
         history: renderHistory,
@@ -891,6 +893,253 @@ function selectTier(id) {
   const idx = PRICING_TIERS.indexOf(tier);
   const presetEls = document.querySelectorAll('#topupPresets .topup-preset');
   if (presetEls[idx]) presetEls[idx].classList.add('active');
+}
+
+/* ─────────────────────────────────────────────────────
+   KEYWORD EXPLORER
+   ───────────────────────────────────────────────────── */
+
+let _explorer = {
+  keyword: '',
+  country: 'us',
+  loading: false,
+  data: null,
+  error: null,
+  recent: [],   // last searched keywords for quick re-pick
+};
+
+function renderExplorer() {
+  // Try to restore recent from localStorage on first render
+  if (!_explorer.recent.length) {
+    try {
+      const r = JSON.parse(localStorage.getItem('maya_recent_kw') || '[]');
+      if (Array.isArray(r)) _explorer.recent = r.slice(0, 8);
+    } catch {}
+  }
+
+  const countryOptions = Object.entries(COUNTRY_INFO)
+    .map(([code, info]) => `<option value="${code}" ${code === _explorer.country ? 'selected' : ''}>${info.flag} ${info.label}</option>`)
+    .join('');
+
+  return `
+    <div class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-subtitle">/ Исследование запросов · AppTweak</div>
+          <div class="page-title">Поиск <span class="accent">ключей</span></div>
+        </div>
+      </div>
+
+      <div class="hint">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <div>
+          <b>Что это?</b> Введи поисковый запрос — увидишь его <b>объём поиска</b>, <b>сложность</b>,
+          сколько приложений ранжируется, и <b>топ-10 приложений</b> которые сейчас стоят на этом ключе.
+          Используй для&nbsp;разведки перед запуском кампании.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <form onsubmit="event.preventDefault(); doExplorerSearch();">
+            <div style="display:grid; grid-template-columns: 1fr 220px auto; gap:10px; align-items:end;">
+              <div class="form-row" style="margin:0;">
+                <label class="form-label">Поисковый запрос</label>
+                <input type="text" class="form-input" id="explorerInput" placeholder="messenger, fitness, weather..."
+                  value="${escapeAttr(_explorer.keyword)}" autofocus
+                  style="font-family:'JetBrains Mono', monospace; font-size:14px;">
+              </div>
+              <div class="form-row" style="margin:0;">
+                <label class="form-label">Страна App Store</label>
+                <select class="form-select" id="explorerCountry">${countryOptions}</select>
+              </div>
+              <button class="btn btn-primary" type="submit" style="height: 42px;">🔍 Найти</button>
+            </div>
+          </form>
+          ${_explorer.recent.length ? `
+            <div style="margin-top:14px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+              <span style="font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--ink-3); letter-spacing:0.1em; text-transform:uppercase;">недавние:</span>
+              ${_explorer.recent.map(k => `<span class="kw-chip" onclick="repeatExplorerSearch('${escapeAttr(k)}')">${escapeHtml(k)}</span>`).join('')}
+            </div>` : ''}
+        </div>
+      </div>
+
+      <div id="explorerResults">${renderExplorerResults()}</div>
+    </div>`;
+}
+
+function renderExplorerResults() {
+  if (_explorer.loading) {
+    return `<div class="card"><div class="card-body"><div class="empty" style="padding:32px;">
+      <div class="empty-text" style="color:var(--ink-3); font-family:'JetBrains Mono', monospace;">Запрашиваем AppTweak…</div>
+    </div></div></div>`;
+  }
+  if (_explorer.error) {
+    return `<div class="card"><div class="card-body"><div class="empty">
+      <div class="empty-title">Ошибка</div>
+      <div class="empty-text" style="color:var(--cinnabar);">${escapeHtml(_explorer.error)}</div>
+    </div></div></div>`;
+  }
+  if (!_explorer.data) return '';
+
+  const { keyword, country, metrics, totalApps, topApps } = _explorer.data;
+  const m = metrics || {};
+  const flag = (COUNTRY_INFO[country] && COUNTRY_INFO[country].flag) || '';
+
+  return `
+    <div class="page-subtitle" style="margin: 6px 0 12px;">
+      / Insights for <span style="color:var(--ink); font-weight:700;">«${escapeHtml(keyword)}»</span> · ${flag} ${escapeHtml((COUNTRY_INFO[country]||{}).label||country.toUpperCase())}
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-c" title="Сколько раз в день этот запрос ищут (шкала 0–100)">
+        <div class="stat-c-lbl">Объём поиска</div>
+        <div class="stat-c-val ${m.volume != null && m.volume >= 50 ? 'accent' : ''}">${m.volume != null ? m.volume : '—'}</div>
+        <div class="stat-c-sub">${m.volume != null ? volumeLabel(m.volume) : 'нет данных'}</div>
+      </div>
+      <div class="stat-c" title="Шкала 0–100. Выше — труднее пробиться в топ.">
+        <div class="stat-c-lbl">Сложность</div>
+        <div class="stat-c-val ${m.difficulty != null && m.difficulty >= 70 ? '' : 'green'}" style="${m.difficulty != null && m.difficulty >= 70 ? 'color:var(--cinnabar);' : ''}">${m.difficulty != null ? m.difficulty : '—'}</div>
+        <div class="stat-c-sub">${m.difficulty != null ? difficultyLabel(m.difficulty) : 'нет данных'}</div>
+      </div>
+      <div class="stat-c">
+        <div class="stat-c-lbl">Максимальный охват</div>
+        <div class="stat-c-val">${m.max_reach != null ? formatNum(m.max_reach) : '—'}</div>
+        <div class="stat-c-sub">пользователей увидят</div>
+      </div>
+      <div class="stat-c">
+        <div class="stat-c-lbl">Приложений по&nbsp;запросу</div>
+        <div class="stat-c-val">${formatNum(totalApps || m.results || 0)}</div>
+        <div class="stat-c-sub">всего ранжируется</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Топ-${topApps.length} приложений в&nbsp;поиске <span class="badge">live</span></div>
+        <div style="font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--ink-3); letter-spacing:0.06em;">
+          именно так выглядит выдача в App Store
+        </div>
+      </div>
+      <div class="card-body dense">
+        ${topApps.length === 0 ? `
+          <div class="empty"><div class="empty-text">Нет приложений в выдаче по этому ключу.</div></div>
+        ` : `
+          <div class="table-wrap"><table class="tbl">
+            <thead><tr>
+              <th>#</th><th>Приложение</th><th>Разработчик</th><th>Категория</th><th>Рейтинг</th><th></th>
+            </tr></thead>
+            <tbody>${topApps.map(a => `
+              <tr>
+                <td class="num" style="color:var(--jade); font-weight:700;">#${a.position}</td>
+                <td><div class="app-cell">
+                  ${a.icon_url
+                    ? `<img src="${escapeAttr(a.icon_url)}" alt="" style="width:40px;height:40px;border-radius:9px;object-fit:cover;flex-shrink:0">`
+                    : `<div class="app-icon-sm" style="--ico-a:#3aff9f;--ico-b:#1a9c5e;">${escapeHtml((a.name||'?').slice(0,1).toUpperCase())}</div>`}
+                  <div class="app-cell-info">
+                    <div class="app-cell-name">${escapeHtml(a.name || ('App #' + a.store_id))}</div>
+                    ${a.subtitle ? `<div class="app-cell-meta">${escapeHtml(a.subtitle)}</div>` : ''}
+                  </div>
+                </div></td>
+                <td class="mono" style="font-size:11px; color:var(--ink-2);">${escapeHtml(a.developer || '—')}</td>
+                <td class="mono" style="font-size:11px; color:var(--ink-2);">${escapeHtml(a.category || '—')}</td>
+                <td class="num">${a.rating != null
+                  ? `<span style="color:var(--gold)">★ ${a.rating.toFixed(1)}</span>`
+                  : '—'}</td>
+                <td><a href="https://apps.apple.com/app/id${a.store_id}" target="_blank" class="btn btn-ghost btn-sm">App Store ↗</a></td>
+              </tr>`).join('')}</tbody>
+          </table></div>
+        `}
+      </div>
+    </div>
+
+    <div style="margin-top:18px; text-align:center;">
+      <button class="btn btn-ghost" onclick="addExplorerKeywordToApp()">+ Добавить «${escapeHtml(keyword)}» в трекинг</button>
+    </div>`;
+}
+
+function volumeLabel(v) {
+  if (v >= 80) return 'очень высокий';
+  if (v >= 50) return 'высокий';
+  if (v >= 30) return 'средний';
+  if (v >= 10) return 'низкий';
+  return 'почти не ищут';
+}
+
+function difficultyLabel(d) {
+  if (d >= 80) return 'очень тяжело';
+  if (d >= 60) return 'тяжело';
+  if (d >= 40) return 'средне';
+  if (d >= 20) return 'легко';
+  return 'очень легко';
+}
+
+async function doExplorerSearch() {
+  const inp = document.getElementById('explorerInput');
+  const ctrySel = document.getElementById('explorerCountry');
+  const keyword = (inp.value || '').trim();
+  const country = ctrySel ? ctrySel.value : 'us';
+  if (!keyword) { toast('Введите запрос', 'error'); return; }
+
+  _explorer.keyword = keyword;
+  _explorer.country = country;
+  _explorer.loading = true;
+  _explorer.error = null;
+  _explorer.data = null;
+  document.getElementById('explorerResults').innerHTML = renderExplorerResults();
+
+  try {
+    const r = await API.researchKeyword(keyword, country, 10);
+    _explorer.data = r;
+    // Add to recent
+    _explorer.recent = [keyword, ..._explorer.recent.filter(k => k !== keyword)].slice(0, 8);
+    try { localStorage.setItem('maya_recent_kw', JSON.stringify(_explorer.recent)); } catch {}
+  } catch (e) {
+    _explorer.error = e.message === 'apptweak_not_configured'
+      ? 'AppTweak не настроен на сервере'
+      : e.message;
+  } finally {
+    _explorer.loading = false;
+    document.getElementById('explorerResults').innerHTML = renderExplorerResults();
+  }
+}
+
+function repeatExplorerSearch(keyword) {
+  _explorer.keyword = keyword;
+  document.getElementById('explorerInput').value = keyword;
+  doExplorerSearch();
+}
+
+function addExplorerKeywordToApp() {
+  const kw = _explorer.keyword;
+  if (!kw) return;
+  if (data.apps.length === 0) {
+    toast('Сначала добавь приложение, чтобы трекать ключ', 'error');
+    return;
+  }
+  if (data.apps.length === 1) {
+    _addKwAppId = data.apps[0].id;
+    openAddKw(data.apps[0].id);
+    setTimeout(() => {
+      const ta = document.getElementById('newKw');
+      if (ta) { ta.value = kw; ta.focus(); }
+    }, 80);
+    return;
+  }
+  // Multiple apps — ask which
+  const which = prompt(
+    'В какое приложение добавить ключ «' + kw + '»?\n\n' +
+    data.apps.map((a, i) => (i + 1) + ') ' + a.name).join('\n') +
+    '\n\nВведи номер:'
+  );
+  const idx = parseInt(which, 10) - 1;
+  if (idx >= 0 && data.apps[idx]) {
+    openAddKw(data.apps[idx].id);
+    setTimeout(() => {
+      const ta = document.getElementById('newKw');
+      if (ta) { ta.value = kw; ta.focus(); }
+    }, 80);
+  }
 }
 
 function renderHistory() {

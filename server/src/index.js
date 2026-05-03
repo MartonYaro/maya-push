@@ -11,6 +11,7 @@ import keywordsRoutes from './routes/keywords.js';
 import txRoutes from './routes/transactions.js';
 import dashboardRoutes from './routes/dashboard.js';
 import adminRoutes from './routes/admin.js';
+import researchRoutes from './routes/research.js';
 import { attachStream } from './sse.js';
 import { runPositionTick } from './services/positionWorker.js';
 
@@ -31,6 +32,7 @@ app.use('/api/keywords', keywordsRoutes);
 app.use('/api/transactions', txRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/research', researchRoutes);
 
 app.get('/api/stream', (req, res) => attachStream(req, res));
 

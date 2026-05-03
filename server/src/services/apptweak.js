@@ -151,6 +151,38 @@ export async function fetchKeywordSuggestionsForApp(appleId, country = 'us', lim
 }
 
 /**
+ * Live search results — top apps ranking for a keyword.
+ * Returns array of Apple app IDs (top to bottom).
+ */
+export async function fetchKeywordSearchResults(keyword, country = 'us') {
+  const json = await call('/api/public/store/keywords/search-results/current.json', {
+    keyword, country, device: 'iphone',
+  });
+  const arr = json && json.result && json.result.value;
+  return Array.isArray(arr) ? arr.map(String) : [];
+}
+
+/**
+ * Bulk metadata for many apps. AppTweak fails the entire batch if ANY app
+ * isn't available in the requested country, so we do per-app calls in
+ * parallel — slower but resilient.
+ *
+ * Returns map { storeId → { name, icon_url, category, ... } }.
+ */
+export async function fetchAppsMetadata(appleIds, country = 'us') {
+  if (!appleIds || !appleIds.length) return {};
+  const results = await Promise.all(
+    appleIds.map(id => fetchAppMetadata(id, country).catch(() => null))
+  );
+  const out = {};
+  for (let i = 0; i < appleIds.length; i++) {
+    const meta = results[i];
+    if (meta) out[appleIds[i]] = meta;
+  }
+  return out;
+}
+
+/**
  * Keyword metrics: volume, difficulty, total results, max reach.
  * Returns map { keyword → { volume, difficulty, results, max_reach } }
  */
@@ -178,11 +210,13 @@ export async function fetchKeywordMetrics(keywords, country = 'us') {
 export const appTweak = {
   isConfigured,
   fetchAppMetadata,
+  fetchAppsMetadata,
   fetchKeywordPosition,
   fetchKeywordPositionsBulk,
   fetchKeywordHistory,
   fetchKeywordSuggestionsForApp,
   fetchKeywordMetrics,
+  fetchKeywordSearchResults,
   parseAppleAppId,
   categoryName,
 };

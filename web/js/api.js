@@ -52,6 +52,10 @@
     suggestions: (id, withMetrics = false) =>
       request('GET', `/apps/${id}/suggestions${withMetrics ? '?withMetrics=1' : ''}`),
 
+    // research / keyword explorer
+    researchKeyword: (keyword, country = 'us', topApps = 10) =>
+      request('GET', `/research/keyword?keyword=${encodeURIComponent(keyword)}&country=${country}&topApps=${topApps}`),
+
     // keywords
     createKeyword: (data) => request('POST', '/keywords', data),
     listByApp:     (appId)=> request('GET',  '/keywords/by-app/' + appId),
