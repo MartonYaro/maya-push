@@ -1919,6 +1919,36 @@
   @media (max-width: 600px) {
     .price-grid { grid-template-columns: 1fr; }
   }
+
+  /* ─── nav auth buttons + lang switcher ─── */
+  .nav-actions {
+    display: flex; align-items: center; gap: 10px; margin-left: auto;
+  }
+  .nav-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+    border: 1px solid var(--line-2); color: var(--ink);
+    text-decoration: none; transition: all 0.15s; white-space: nowrap;
+  }
+  .nav-btn:hover { border-color: var(--jade); color: var(--jade); }
+  .nav-btn.primary { background: var(--jade); color: var(--bg); border-color: var(--jade); }
+  .nav-btn.primary:hover { background: transparent; color: var(--jade); }
+  .lang-toggle {
+    display: inline-flex; border: 1px solid var(--line-2); overflow: hidden; user-select: none;
+  }
+  .lang-toggle button {
+    background: transparent; color: var(--ink-3); border: 0;
+    padding: 7px 10px; font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    font-weight: 700; letter-spacing: 0.1em; cursor: pointer; transition: all 0.15s;
+  }
+  .lang-toggle button:hover { color: var(--ink); }
+  .lang-toggle button.active { background: var(--jade); color: var(--bg); }
+
+  @media (max-width: 980px) {
+    .nav-actions { gap: 6px; }
+    .nav-btn { padding: 7px 10px; font-size: 11px; }
+    .nav-btn.ghost-only-desktop { display: none; }
+  }
 </style>
 </head>
 <body>
@@ -2385,15 +2415,19 @@
     <span class="light">Push</span>
   </a>
   <div class="nav-links">
-    <a href="#method">Метод</a>
-    <a href="#cases">Кейсы</a>
-    <a href="#features">Что внутри</a>
-    <a href="#pricing">Цены</a>
-    <a href="https://t.me/ojakos">Контакт</a>
+    <a href="#method"   data-en="Method">Метод</a>
+    <a href="#cases"    data-en="Cases">Кейсы</a>
+    <a href="#features" data-en="Inside">Что внутри</a>
+    <a href="#pricing"  data-en="Pricing">Цены</a>
+    <a href="https://t.me/ojakos" data-en="Contact">Контакт</a>
   </div>
-  <div class="nav-meta">
-    <span class="live-dot"></span>
-    <span>13.0.13.5.7 · KAB'AN</span>
+  <div class="nav-actions">
+    <div class="lang-toggle" role="group" aria-label="Language">
+      <button type="button" data-lang="ru" class="active">RU</button>
+      <button type="button" data-lang="en">EN</button>
+    </div>
+    <a href="/dashboard#login"    class="nav-btn ghost-only-desktop" data-en="Sign in">Войти</a>
+    <a href="/dashboard#register" class="nav-btn primary"            data-en="Sign up">Регистрация</a>
   </div>
 </nav>
 
@@ -2416,30 +2450,30 @@
 
   <div class="hero-left">
     <div class="hero-meta">
-      <span class="accept">Принимаем заявки · Q2 2026</span>
+      <span class="accept" data-en="Accepting orders · Q2 2026">Принимаем заявки · Q2 2026</span>
       <span>iOS Installs · ASO Boost</span>
     </div>
 
     <h1 class="in">
-      <span class="row"><span>Поднимаем</span></span>
-      <span class="row"><span><span class="stroke">приложения</span></span></span>
-      <span class="row"><span>в&nbsp;<span class="accent">топ.</span></span></span>
+      <span class="row"><span data-en="We push">Поднимаем</span></span>
+      <span class="row"><span><span class="stroke" data-en="apps">приложения</span></span></span>
+      <span class="row"><span data-en='to&nbsp;<span class="accent">top.</span>'>в&nbsp;<span class="accent">топ.</span></span></span>
     </h1>
 
     <div class="hero-bottom">
-      <p class="hero-desc">
+      <p class="hero-desc" data-en="Real devices and local IPs in any geo. <strong>Transparent terms and a real-time install table</strong> — from strategy to locking positions in the App&nbsp;Store.">
         Локальные устройства и&nbsp;IP в&nbsp;любых гео. <strong>Прозрачные условия и&nbsp;таблица инсталлов в&nbsp;реальном времени</strong> — от&nbsp;планирования до&nbsp;закрепления позиций в&nbsp;App&nbsp;Store.
       </p>
 
       <div class="hero-cta">
         <a href="https://t.me/ojakos" class="btn-primary" data-magnetic>
-          <span>Запустить</span>
+          <span data-en="Launch">Запустить</span>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M1 13L13 1M13 1H3M13 1V11" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
           </svg>
         </a>
         <a href="#pricing" class="btn-ghost">
-          <span>Тарифы</span>
+          <span data-en="Pricing">Тарифы</span>
           <span style="opacity: 0.5">→</span>
         </a>
       </div>
@@ -2502,16 +2536,16 @@
 
     <div class="cartouche">
       <div class="cartouche-head">
-        <span>Ranking</span>
-        <span class="cartouche-live">Live</span>
+        <span data-en="Ranking">Ranking</span>
+        <span class="cartouche-live" data-en="Live">Live</span>
       </div>
       <div class="cartouche-body" id="rankList"></div>
     </div>
 
     <div class="live-counter">
-      <div class="live-counter-label">Установок · сейчас</div>
+      <div class="live-counter-label" data-en="Installs · live">Установок · сейчас</div>
       <div class="live-counter-val" id="liveInstalls">0</div>
-      <div class="live-counter-sub">+<b id="lastMin">0</b> за&nbsp;минуту</div>
+      <div class="live-counter-sub" data-en="+<b id=&quot;lastMin&quot;>0</b> per&nbsp;minute">+<b id="lastMin">0</b> за&nbsp;минуту</div>
     </div>
   </div>
 </section>
@@ -2520,24 +2554,24 @@
 <div class="stats-band">
   <div class="stats-grid">
     <div class="stat-cell">
-      <div class="stat-label">Рост позиций</div>
+      <div class="stat-label" data-en="Position growth">Рост позиций</div>
       <div class="stat-num"><span class="accent">+99</span></div>
-      <div class="stat-sub">за&nbsp;14 дней<br>App&nbsp;Store&nbsp;US</div>
+      <div class="stat-sub" data-en="in 14&nbsp;days<br>App&nbsp;Store&nbsp;US">за&nbsp;14 дней<br>App&nbsp;Store&nbsp;US</div>
     </div>
     <div class="stat-cell">
-      <div class="stat-label">Объём в&nbsp;месяц</div>
+      <div class="stat-label" data-en="Monthly volume">Объём в&nbsp;месяц</div>
       <div class="stat-num">200<span class="accent">k+</span></div>
-      <div class="stat-sub">установок<br>любые гео</div>
+      <div class="stat-sub" data-en="installs<br>any geo">установок<br>любые гео</div>
     </div>
     <div class="stat-cell">
-      <div class="stat-label">Цена за&nbsp;инсталл</div>
+      <div class="stat-label" data-en="Price per install">Цена за&nbsp;инсталл</div>
       <div class="stat-num"><span class="accent">$</span>0.13</div>
-      <div class="stat-sub">от&nbsp;цены<br>при объёме</div>
+      <div class="stat-sub" data-en="starting from<br>at scale">от&nbsp;цены<br>при объёме</div>
     </div>
     <div class="stat-cell">
-      <div class="stat-label">В&nbsp;топ-5</div>
+      <div class="stat-label" data-en="In top-5">В&nbsp;топ-5</div>
       <div class="stat-num">3<span class="accent">/3</span></div>
-      <div class="stat-sub">ключевых<br>запросов</div>
+      <div class="stat-sub" data-en="keywords<br>delivered">ключевых<br>запросов</div>
     </div>
   </div>
 </div>
@@ -2581,8 +2615,8 @@
   <div class="sec-head">
     <div class="sec-head-left">
       <div>
-        <div class="sec-label"><span class="num">/01</span> <span>Метод</span></div>
-        <h2>Три ступени<br><span class="accent">пирамиды</span></h2>
+        <div class="sec-label"><span class="num">/01</span> <span data-en="Method">Метод</span></div>
+        <h2 data-en="Three steps<br>of the&nbsp;<span class='accent'>pyramid</span>">Три ступени<br><span class="accent">пирамиды</span></h2>
       </div>
       <div class="sec-coord">
         <div class="sec-coord-row"><span>SECTION</span> <b>01 / 05</b></div>
@@ -2596,24 +2630,24 @@
         <svg viewBox="0 0 400 110" preserveAspectRatio="xMidYMid meet"><use href="#deco-method"/></svg>
         <span class="corner-bl"></span><span class="corner-br"></span>
       </div>
-      <div class="sec-quote">
+      <div class="sec-quote" data-en="Every step is calculated. Each one has a&nbsp;<span class='accent'>measurable target.</span>">
         Каждая ступень рассчитана. У&nbsp;каждого шага — <span class="accent">измеряемая цель.</span>
       </div>
-      <p class="sec-desc">
+      <p class="sec-desc" data-en="No magic — only infrastructure and experience with App&nbsp;Store algorithms. Prep, flow, lock: a three-stage system that takes an app out of the shadows and into the top in 14–21&nbsp;days.">
         Никакой магии — только инфраструктура и&nbsp;опыт работы с&nbsp;алгоритмами App&nbsp;Store. Подготовка, поток, закрепление: трёхэтапная система выводит приложение из&nbsp;тени в&nbsp;топ за&nbsp;14–21&nbsp;день.
       </p>
       <div class="sec-points">
         <div class="sec-point">
           <div class="sec-point-val">14d</div>
-          <div class="sec-point-lbl">средний срок</div>
+          <div class="sec-point-lbl" data-en="avg. time">средний срок</div>
         </div>
         <div class="sec-point">
           <div class="sec-point-val">3</div>
-          <div class="sec-point-lbl">этапа работы</div>
+          <div class="sec-point-lbl" data-en="stages">этапа работы</div>
         </div>
         <div class="sec-point">
           <div class="sec-point-val">100%</div>
-          <div class="sec-point-lbl">прозрачно</div>
+          <div class="sec-point-lbl" data-en="transparent">прозрачно</div>
         </div>
       </div>
     </div>
@@ -2622,32 +2656,32 @@
   <div class="method">
     <div class="method-step reveal">
       <div class="method-num">
-        <span>I · Подготовка</span>
+        <span data-en="I · Prep">I · Подготовка</span>
         <span class="step">01 / 03</span>
       </div>
       <svg class="method-glyph" viewBox="0 0 88 88"><use href="#m-seed"/></svg>
-      <h3 class="method-title">Собираем<br><span class="accent">стратегию</span></h3>
-      <p class="method-desc">Приложение, ключи, гео. Считаем объём инсталлов для&nbsp;пробития топа, закладываем запас на&nbsp;закрепление.</p>
+      <h3 class="method-title" data-en="We build the&nbsp;<span class='accent'>strategy</span>">Собираем<br><span class="accent">стратегию</span></h3>
+      <p class="method-desc" data-en="App, keywords, geo. We compute the install volume needed to break the top, with a reserve for the lock-in phase.">Приложение, ключи, гео. Считаем объём инсталлов для&nbsp;пробития топа, закладываем запас на&nbsp;закрепление.</p>
     </div>
 
     <div class="method-step reveal">
       <div class="method-num">
-        <span>II · Поток</span>
+        <span data-en="II · Flow">II · Поток</span>
         <span class="step">02 / 03</span>
       </div>
       <svg class="method-glyph" viewBox="0 0 88 88"><use href="#m-wave"/></svg>
-      <h3 class="method-title">Запускаем<br><span class="accent">волну</span></h3>
-      <p class="method-desc">Локальные устройства и&nbsp;чистые IP в&nbsp;целевом гео. Поисковые сессии с&nbsp;нужными запросами — Apple видит естественное поведение.</p>
+      <h3 class="method-title" data-en="We launch the&nbsp;<span class='accent'>wave</span>">Запускаем<br><span class="accent">волну</span></h3>
+      <p class="method-desc" data-en="Local devices and clean IPs in the target geo. Search sessions with the right queries — Apple sees natural behavior.">Локальные устройства и&nbsp;чистые IP в&nbsp;целевом гео. Поисковые сессии с&nbsp;нужными запросами — Apple видит естественное поведение.</p>
     </div>
 
     <div class="method-step reveal">
       <div class="method-num">
-        <span>III · Закрепление</span>
+        <span data-en="III · Lock-in">III · Закрепление</span>
         <span class="step">03 / 03</span>
       </div>
       <svg class="method-glyph" viewBox="0 0 88 88"><use href="#m-crown"/></svg>
-      <h3 class="method-title">Фиксируем<br><span class="accent">позицию</span></h3>
-      <p class="method-desc">Рост по&nbsp;ключам, behavioral-сигналы, закрепление в&nbsp;индексе. Дальше работает органика.</p>
+      <h3 class="method-title" data-en="We lock the&nbsp;<span class='accent'>position</span>">Фиксируем<br><span class="accent">позицию</span></h3>
+      <p class="method-desc" data-en="Keyword growth, behavioral signals, index lock-in. Organic traffic takes over from there.">Рост по&nbsp;ключам, behavioral-сигналы, закрепление в&nbsp;индексе. Дальше работает органика.</p>
     </div>
   </div>
 </section>
@@ -2657,7 +2691,7 @@
   <div class="anchor-grid">
     <div class="anchor-side">
       <span>/ STATEMENT 01</span>
-      <span class="big">Без догадок.</span>
+      <span class="big" data-en="No&nbsp;guessing.">Без догадок.</span>
     </div>
     <div class="anchor-quote">
       we don't<br><span class="stroke">ask.</span> we&nbsp;<span class="glitch accent">push.</span>
@@ -2674,8 +2708,8 @@
   <div class="sec-head">
     <div class="sec-head-left">
       <div>
-        <div class="sec-label"><span class="num">/02</span> <span>Кейсы</span></div>
-        <h2>Из тени<br>в&nbsp;<span class="accent">топ.</span></h2>
+        <div class="sec-label"><span class="num">/02</span> <span data-en="Cases">Кейсы</span></div>
+        <h2 data-en="From shadow<br>to&nbsp;<span class='accent'>top.</span>">Из тени<br>в&nbsp;<span class="accent">топ.</span></h2>
       </div>
       <div class="sec-coord">
         <div class="sec-coord-row"><span>SECTION</span> <b>02 / 05</b></div>
@@ -2689,16 +2723,16 @@
         <svg viewBox="0 0 400 110" preserveAspectRatio="xMidYMid meet"><use href="#deco-cases"/></svg>
         <span class="corner-bl"></span><span class="corner-br"></span>
       </div>
-      <div class="sec-quote">
+      <div class="sec-quote" data-en="Real results across geos and niches — <span class='accent'>measurable positions.</span>">
         Реальные результаты в&nbsp;разных гео и&nbsp;нишах — <span class="accent">измеримые позиции.</span>
       </div>
-      <p class="sec-desc">
+      <p class="sec-desc" data-en="Every case is keyword positions, transparent deadlines, and local-install infrastructure. Fitness in the US, Finance in Europe, Gaming in Brazil — same method, different markets.">
         Каждый кейс — это позиции по&nbsp;ключам, прозрачные сроки и&nbsp;инфраструктура локальных установок. Fitness в&nbsp;США, Finance в&nbsp;Европе, Gaming в&nbsp;Бразилии&nbsp;— одна методика на&nbsp;разных рынках.
       </p>
       <div class="sec-points">
         <div class="sec-point">
           <div class="sec-point-val">10/10</div>
-          <div class="sec-point-lbl">ключей в&nbsp;топ</div>
+          <div class="sec-point-lbl" data-en="keywords in top">ключей в&nbsp;топ</div>
         </div>
         <div class="sec-point">
           <div class="sec-point-val">3 гео</div>
@@ -2706,7 +2740,7 @@
         </div>
         <div class="sec-point">
           <div class="sec-point-val">+99</div>
-          <div class="sec-point-lbl">макс. рост</div>
+          <div class="sec-point-lbl" data-en="max growth">макс. рост</div>
         </div>
       </div>
     </div>
@@ -2716,27 +2750,27 @@
     <!-- CASE 1 -->
     <div class="case-block">
       <div class="case-info reveal">
-        <div class="case-tag">Кейс 01 · USA · 14 days</div>
-        <h3 class="case-h3">Fitness app:<br>три ключа в&nbsp;<span class="accent">топ-5.</span></h3>
-        <p class="case-text">
+        <div class="case-tag" data-en="Case 01 · USA · 14 days">Кейс 01 · USA · 14 days</div>
+        <h3 class="case-h3" data-en="Fitness app:<br>three keywords in&nbsp;<span class='accent'>top-5.</span>">Fitness app:<br>три ключа в&nbsp;<span class="accent">топ-5.</span></h3>
+        <p class="case-text" data-en="The app was outside top-200. We built a strategy for three queries, ran a local install flow, and locked the result in 14&nbsp;days.">
           Приложение находилось за&nbsp;пределами топ-200. Собрали стратегию под&nbsp;три запроса, запустили локальный поток инсталлов, закрепили результат за&nbsp;14&nbsp;дней.
         </p>
         <div class="case-stats">
           <div class="case-stat">
             <div class="case-stat-num">+99</div>
-            <div class="case-stat-lbl">key 3 — рост</div>
+            <div class="case-stat-lbl" data-en="key 3 — growth">key 3 — рост</div>
           </div>
           <div class="case-stat">
             <div class="case-stat-num">+19</div>
-            <div class="case-stat-lbl">key 1 — рост</div>
+            <div class="case-stat-lbl" data-en="key 1 — growth">key 1 — рост</div>
           </div>
           <div class="case-stat">
             <div class="case-stat-num">3/3</div>
-            <div class="case-stat-lbl">в&nbsp;топ-5</div>
+            <div class="case-stat-lbl" data-en="in top-5">в&nbsp;топ-5</div>
           </div>
           <div class="case-stat">
             <div class="case-stat-num">14d</div>
-            <div class="case-stat-lbl">срок</div>
+            <div class="case-stat-lbl" data-en="time">срок</div>
           </div>
         </div>
       </div>
@@ -2820,9 +2854,9 @@
     <!-- CASE 2 — reverse -->
     <div class="case-block reverse">
       <div class="case-info reveal">
-        <div class="case-tag">Кейс 02 · DE/FR · 21 days</div>
-        <h3 class="case-h3">Finance app:<br>топ&nbsp;Германии<br>и&nbsp;<span class="accent">Франции.</span></h3>
-        <p class="case-text">
+        <div class="case-tag" data-en="Case 02 · DE/FR · 21 days">Кейс 02 · DE/FR · 21 days</div>
+        <h3 class="case-h3" data-en="Finance app:<br>top in Germany<br>and&nbsp;<span class='accent'>France.</span>">Finance app:<br>топ&nbsp;Германии<br>и&nbsp;<span class="accent">Франции.</span></h3>
+        <p class="case-text" data-en="Parallel launch in two geos. Highly competitive finance niche. Closed four keywords in three weeks, broke into Top Charts by category.">
           Параллельный запуск в&nbsp;двух гео. Финансовая ниша с&nbsp;высокой конкуренцией. Закрыли четыре ключа за&nbsp;три недели, вышли в&nbsp;Top Charts по&nbsp;категории.
         </p>
         <div class="case-stats">
@@ -2836,11 +2870,11 @@
           </div>
           <div class="case-stat">
             <div class="case-stat-num">4/4</div>
-            <div class="case-stat-lbl">ключей</div>
+            <div class="case-stat-lbl" data-en="keywords">ключей</div>
           </div>
           <div class="case-stat">
             <div class="case-stat-num">21d</div>
-            <div class="case-stat-lbl">срок</div>
+            <div class="case-stat-lbl" data-en="time">срок</div>
           </div>
         </div>
       </div>
@@ -2970,27 +3004,27 @@
     <!-- CASE 3 -->
     <div class="case-block">
       <div class="case-info reveal">
-        <div class="case-tag">Кейс 03 · BR · 30 days</div>
-        <h3 class="case-h3">Gaming app:<br>200k установок,<br><span class="accent">3&nbsp;ключа в&nbsp;топ-1.</span></h3>
-        <p class="case-text">
+        <div class="case-tag" data-en="Case 03 · BR · 30 days">Кейс 03 · BR · 30 days</div>
+        <h3 class="case-h3" data-en="Gaming app:<br>200k installs,<br><span class='accent'>3&nbsp;keywords at&nbsp;#1.</span>">Gaming app:<br>200k установок,<br><span class="accent">3&nbsp;ключа в&nbsp;топ-1.</span></h3>
+        <p class="case-text" data-en="Brazilian market, mobile game. Large-scale campaign of 200,000+ installs in a month. Three keywords at #1, category-position growth in Games.">
           Бразильский рынок, мобильная игра. Масштабная кампания 200&nbsp;000+ инсталлов за&nbsp;месяц. Три ключа на&nbsp;первом месте, рост категориальной позиции&nbsp;Games.
         </p>
         <div class="case-stats">
           <div class="case-stat">
             <div class="case-stat-num">200k</div>
-            <div class="case-stat-lbl">установок</div>
+            <div class="case-stat-lbl" data-en="installs">установок</div>
           </div>
           <div class="case-stat">
             <div class="case-stat-num">3×#1</div>
-            <div class="case-stat-lbl">ключи</div>
+            <div class="case-stat-lbl" data-en="keywords">ключи</div>
           </div>
           <div class="case-stat">
             <div class="case-stat-num">+187</div>
-            <div class="case-stat-lbl">средний рост</div>
+            <div class="case-stat-lbl" data-en="avg growth">средний рост</div>
           </div>
           <div class="case-stat">
             <div class="case-stat-num">30d</div>
-            <div class="case-stat-lbl">срок</div>
+            <div class="case-stat-lbl" data-en="time">срок</div>
           </div>
         </div>
       </div>
@@ -3071,7 +3105,7 @@
 <!-- BIG NUM перед FEATURES -->
 <div class="big-num">
   <div class="big-num-digit">+99</div>
-  <div class="big-num-meta">
+  <div class="big-num-meta" data-en="<span class='h'>Maximum<br>position growth</span>recorded in case&nbsp;01<br>USA · 14 days · <b>verified</b>">
     <span class="h">Максимальный<br>рост позиций</span>
     зафиксирован в&nbsp;кейсе&nbsp;01<br>
     USA · 14 дней · <b>verified</b>
@@ -3083,8 +3117,8 @@
   <div class="sec-head">
     <div class="sec-head-left">
       <div>
-        <div class="sec-label"><span class="num">/03</span> <span>Что внутри</span></div>
-        <h2>Чистая<br><span class="accent">инфраструктура</span></h2>
+        <div class="sec-label"><span class="num">/03</span> <span data-en="Inside">Что внутри</span></div>
+        <h2 data-en="Clean<br><span class='accent'>infrastructure</span>">Чистая<br><span class="accent">инфраструктура</span></h2>
       </div>
       <div class="sec-coord">
         <div class="sec-coord-row"><span>SECTION</span> <b>03 / 05</b></div>
@@ -3098,10 +3132,10 @@
         <svg viewBox="0 0 400 110" preserveAspectRatio="xMidYMid meet"><use href="#deco-features"/></svg>
         <span class="corner-bl"></span><span class="corner-br"></span>
       </div>
-      <div class="sec-quote">
+      <div class="sec-quote" data-en="No emulators, no proxy farms, no datacenter IPs — <span class='accent'>only live devices.</span>">
         Никаких эмуляторов, прокси-ферм или&nbsp;дата-центровых&nbsp;IP — <span class="accent">только живые устройства.</span>
       </div>
-      <p class="sec-desc">
+      <p class="sec-desc" data-en="Real iPhones in the target geos with residential addresses. Transparent reporting on every install: a project chat, real-time position table, direct contact with no middlemen.">
         Реальные iPhone в&nbsp;нужных гео с&nbsp;резидентными адресами. Прозрачная отчётность по&nbsp;каждому инсталлу: чат под&nbsp;проект, таблица позиций в&nbsp;real-time, связь напрямую без&nbsp;посредников.
       </p>
       <div class="sec-points">
@@ -3111,11 +3145,11 @@
         </div>
         <div class="sec-point">
           <div class="sec-point-val">12+</div>
-          <div class="sec-point-lbl">гео в&nbsp;стеке</div>
+          <div class="sec-point-lbl" data-en="geos in stack">гео в&nbsp;стеке</div>
         </div>
         <div class="sec-point">
           <div class="sec-point-val">24/7</div>
-          <div class="sec-point-lbl">мониторинг</div>
+          <div class="sec-point-lbl" data-en="monitoring">мониторинг</div>
         </div>
       </div>
     </div>
@@ -3124,18 +3158,18 @@
   <div class="feats">
     <div class="feat reveal">
       <svg class="feat-glyph" viewBox="0 0 64 64"><use href="#g-mirror"/></svg>
-      <h4>Локальные<br><span class="accent">устройства</span></h4>
-      <p>Реальные iPhone в&nbsp;целевом гео, резидентные&nbsp;IP. Поисковые сессии с&nbsp;нужными запросами выглядят как&nbsp;органика.</p>
+      <h4 data-en="Local<br><span class='accent'>devices</span>">Локальные<br><span class="accent">устройства</span></h4>
+      <p data-en="Real iPhones in the target geo, residential IPs. Search sessions with the right queries look exactly like organic traffic.">Реальные iPhone в&nbsp;целевом гео, резидентные&nbsp;IP. Поисковые сессии с&nbsp;нужными запросами выглядят как&nbsp;органика.</p>
     </div>
     <div class="feat reveal">
       <svg class="feat-glyph" viewBox="0 0 64 64"><use href="#g-kin"/></svg>
-      <h4>Любой<br><span class="accent">объём</span></h4>
-      <p>От&nbsp;тестовых тысяч до&nbsp;200k+ установок в&nbsp;месяц. Индивидуальные условия для&nbsp;крупных кампаний.</p>
+      <h4 data-en="Any<br><span class='accent'>volume</span>">Любой<br><span class="accent">объём</span></h4>
+      <p data-en="From test thousands to 200k+ installs per month. Custom terms for large campaigns.">От&nbsp;тестовых тысяч до&nbsp;200k+ установок в&nbsp;месяц. Индивидуальные условия для&nbsp;крупных кампаний.</p>
     </div>
     <div class="feat reveal">
       <svg class="feat-glyph" viewBox="0 0 64 64"><use href="#g-tan"/></svg>
-      <h4>Чат и&nbsp;таблица<br><span class="accent">в&nbsp;real-time</span></h4>
-      <p>Отдельный Telegram-чат под&nbsp;проект. Таблица инсталлов и&nbsp;позиций обновляется в&nbsp;реальном времени.</p>
+      <h4 data-en="Chat and dashboard<br><span class='accent'>in real-time</span>">Чат и&nbsp;таблица<br><span class="accent">в&nbsp;real-time</span></h4>
+      <p data-en="A dedicated Telegram chat per project. Install and position table updates in real time.">Отдельный Telegram-чат под&nbsp;проект. Таблица инсталлов и&nbsp;позиций обновляется в&nbsp;реальном времени.</p>
     </div>
   </div>
 </section>
@@ -3145,7 +3179,7 @@
   <div class="anchor-grid">
     <div class="anchor-side">
       <span>/ STATEMENT 02</span>
-      <span class="big">Только живые.</span>
+      <span class="big" data-en="Live only.">Только живые.</span>
     </div>
     <div class="anchor-quote">
       <span class="stroke">no</span> <em>emulators.</em><br><span class="accent">no</span> <em>proxies.</em>
@@ -3162,8 +3196,8 @@
   <div class="sec-head">
     <div class="sec-head-left">
       <div>
-        <div class="sec-label"><span class="num">/04</span> <span>Старт</span></div>
-        <h2>Как проходит<br><span class="accent">работа</span></h2>
+        <div class="sec-label"><span class="num">/04</span> <span data-en="Start">Старт</span></div>
+        <h2 data-en="How the&nbsp;work<br><span class='accent'>flows</span>">Как проходит<br><span class="accent">работа</span></h2>
       </div>
       <div class="sec-coord">
         <div class="sec-coord-row"><span>SECTION</span> <b>04 / 05</b></div>
@@ -3177,24 +3211,24 @@
         <svg viewBox="0 0 400 110" preserveAspectRatio="xMidYMid meet"><use href="#deco-process"/></svg>
         <span class="corner-bl"></span><span class="corner-br"></span>
       </div>
-      <div class="sec-quote">
+      <div class="sec-quote" data-en="Five steps from the first request to&nbsp;<span class='accent'>locking the top.</span>">
         Пять шагов от&nbsp;первой заявки до&nbsp;<span class="accent">закрепления в&nbsp;топе.</span>
       </div>
-      <p class="sec-desc">
+      <p class="sec-desc" data-en="Full cycle — 14–21 days depending on the niche. Transparent workflow: request, strategy calc, deposit, flow launch, scale. Direct contact and metrics on every step.">
         Полный цикл — 14–21&nbsp;день в&nbsp;зависимости от&nbsp;ниши. Прозрачный workflow: заявка, расчёт стратегии, депозит, запуск потока, масштабирование. На&nbsp;каждом шаге&nbsp;— связь напрямую и&nbsp;контроль метрик.
       </p>
       <div class="sec-points">
         <div class="sec-point">
           <div class="sec-point-val">5</div>
-          <div class="sec-point-lbl">шагов</div>
+          <div class="sec-point-lbl" data-en="steps">шагов</div>
         </div>
         <div class="sec-point">
           <div class="sec-point-val">14d+</div>
-          <div class="sec-point-lbl">средний цикл</div>
+          <div class="sec-point-lbl" data-en="avg. cycle">средний цикл</div>
         </div>
         <div class="sec-point">
           <div class="sec-point-val">$1500</div>
-          <div class="sec-point-lbl">мин. депозит</div>
+          <div class="sec-point-lbl" data-en="min. deposit">мин. депозит</div>
         </div>
       </div>
     </div>
@@ -3203,32 +3237,32 @@
   <div class="process">
     <div class="process-row reveal">
       <div class="pr-num">/ 01</div>
-      <div class="pr-title">Заявка<br>и&nbsp;<span class="accent">цель</span></div>
-      <div class="pr-desc">Присылаешь приложение, ключи, гео и&nbsp;желаемую позицию в&nbsp;топе.</div>
+      <div class="pr-title" data-en="Request<br>&amp; <span class='accent'>goal</span>">Заявка<br>и&nbsp;<span class="accent">цель</span></div>
+      <div class="pr-desc" data-en="You send the app, keywords, geo, and the position you want.">Присылаешь приложение, ключи, гео и&nbsp;желаемую позицию в&nbsp;топе.</div>
       <div class="pr-arr">→</div>
     </div>
     <div class="process-row reveal">
       <div class="pr-num">/ 02</div>
-      <div class="pr-title">Расчёт<br><span class="accent">стратегии</span></div>
-      <div class="pr-desc">Считаем нужные объёмы инсталлов, согласуем график и&nbsp;ожидаемый результат.</div>
+      <div class="pr-title" data-en="Strategy<br><span class='accent'>calc</span>">Расчёт<br><span class="accent">стратегии</span></div>
+      <div class="pr-desc" data-en="We calculate install volume, align the schedule and the expected result.">Считаем нужные объёмы инсталлов, согласуем график и&nbsp;ожидаемый результат.</div>
       <div class="pr-arr">→</div>
     </div>
     <div class="process-row reveal">
       <div class="pr-num">/ 03</div>
-      <div class="pr-title">Депозит<br>и&nbsp;<span class="accent">чат</span></div>
-      <div class="pr-desc">Минимум $1500&nbsp;— невозвратный, полностью откручивается в&nbsp;инсталлы.</div>
+      <div class="pr-title" data-en="Deposit<br>&amp; <span class='accent'>chat</span>">Депозит<br>и&nbsp;<span class="accent">чат</span></div>
+      <div class="pr-desc" data-en="Minimum $1500 — non-refundable, fully spent on installs.">Минимум $1500&nbsp;— невозвратный, полностью откручивается в&nbsp;инсталлы.</div>
       <div class="pr-arr">→</div>
     </div>
     <div class="process-row reveal">
       <div class="pr-num">/ 04</div>
-      <div class="pr-title">Запуск<br><span class="accent">потока</span></div>
-      <div class="pr-desc">Инсталлы и&nbsp;позиции в&nbsp;реальном времени. Связь напрямую в&nbsp;чате.</div>
+      <div class="pr-title" data-en="Flow<br><span class='accent'>launch</span>">Запуск<br><span class="accent">потока</span></div>
+      <div class="pr-desc" data-en="Installs and positions in real time. Direct chat with the team.">Инсталлы и&nbsp;позиции в&nbsp;реальном времени. Связь напрямую в&nbsp;чате.</div>
       <div class="pr-arr">→</div>
     </div>
     <div class="process-row reveal">
       <div class="pr-num">/ 05</div>
-      <div class="pr-title">Масштаб<br>и&nbsp;<span class="accent">рост</span></div>
-      <div class="pr-desc">Закрепляем позиции, расширяем на&nbsp;новые ключи и&nbsp;гео.</div>
+      <div class="pr-title" data-en="Scale<br>&amp; <span class='accent'>growth</span>">Масштаб<br>и&nbsp;<span class="accent">рост</span></div>
+      <div class="pr-desc" data-en="We lock in positions and expand to new keywords and geos.">Закрепляем позиции, расширяем на&nbsp;новые ключи и&nbsp;гео.</div>
       <div class="pr-arr">→</div>
     </div>
   </div>
@@ -3237,7 +3271,7 @@
 <!-- BIG NUM перед PRICING -->
 <div class="big-num">
   <div class="big-num-digit">$0.13</div>
-  <div class="big-num-meta">
+  <div class="big-num-meta" data-en="<span class='h'>Starting price<br>per install</span>at volumes of 200,000+ installs<br>custom terms · <b>volume-based</b>">
     <span class="h">От&nbsp;цены<br>за&nbsp;инсталл</span>
     при&nbsp;объёме от&nbsp;200&nbsp;000+ установок<br>
     индивидуальные условия · <b>volume-based</b>
@@ -3249,8 +3283,8 @@
   <div class="sec-head">
     <div class="sec-head-left">
       <div>
-        <div class="sec-label"><span class="num">/05</span> <span>Тарифы</span></div>
-        <h2>Чем больше объём —<br><span class="accent">тем меньше цена</span></h2>
+        <div class="sec-label"><span class="num">/05</span> <span data-en="Pricing">Тарифы</span></div>
+        <h2 data-en="More volume —<br><span class='accent'>lower price</span>">Чем больше объём —<br><span class="accent">тем меньше цена</span></h2>
       </div>
       <div class="sec-coord">
         <div class="sec-coord-row"><span>SECTION</span> <b>05 / 05</b></div>
@@ -3264,24 +3298,24 @@
         <svg viewBox="0 0 400 110" preserveAspectRatio="xMidYMid meet"><use href="#deco-pricing"/></svg>
         <span class="corner-bl"></span><span class="corner-br"></span>
       </div>
-      <div class="sec-quote">
+      <div class="sec-quote" data-en="Price per install drops as volume grows&nbsp;— <span class='accent'>down to $0.13.</span>">
         Цена за&nbsp;инсталл снижается с&nbsp;ростом объёма&nbsp;— <span class="accent">до&nbsp;$0.13.</span>
       </div>
-      <p class="sec-desc">
+      <p class="sec-desc" data-en="Minimum deposit $1500 — non-refundable, fully spent on installs. For campaigns of 200k+ installs — custom terms and an Enterprise tier.">
         Минимальный депозит $1500&nbsp;— невозвратный, полностью откручивается в&nbsp;инсталлы. Для&nbsp;кампаний от&nbsp;200k+ установок&nbsp;— индивидуальные условия и&nbsp;Enterprise-тариф.
       </p>
       <div class="sec-points">
         <div class="sec-point">
           <div class="sec-point-val">$0.13</div>
-          <div class="sec-point-lbl">мин. цена</div>
+          <div class="sec-point-lbl" data-en="min. price">мин. цена</div>
         </div>
         <div class="sec-point">
           <div class="sec-point-val">4</div>
-          <div class="sec-point-lbl">тарифа</div>
+          <div class="sec-point-lbl" data-en="tiers">тарифа</div>
         </div>
         <div class="sec-point">
           <div class="sec-point-val">$1.5K</div>
-          <div class="sec-point-lbl">депозит</div>
+          <div class="sec-point-lbl" data-en="deposit">депозит</div>
         </div>
       </div>
     </div>
@@ -3289,40 +3323,40 @@
 
   <div class="price-grid">
     <div class="price-card reveal">
-      <div class="price-tier">/ Базовая</div>
+      <div class="price-tier" data-en="/ Standard">/ Базовая</div>
       <div class="price-amount-wrap">
         <div class="price-amount"><span class="cur">$</span>0.30</div>
         <div class="price-unit">/ install</div>
       </div>
-      <div class="price-vol">До&nbsp;<b>80&nbsp;000</b> установок</div>
+      <div class="price-vol" data-en="Up to&nbsp;<b>80,000</b> installs">До&nbsp;<b>80&nbsp;000</b> установок</div>
     </div>
     <div class="price-card hot reveal">
-      <div class="price-tier">/ Объём</div>
+      <div class="price-tier" data-en="/ Volume">/ Объём</div>
       <div class="price-amount-wrap">
         <div class="price-amount"><span class="cur">$</span>0.25</div>
         <div class="price-unit">/ install</div>
       </div>
-      <div class="price-vol">От&nbsp;<b>80&nbsp;000</b> установок</div>
+      <div class="price-vol" data-en="From&nbsp;<b>80,000</b> installs">От&nbsp;<b>80&nbsp;000</b> установок</div>
     </div>
     <div class="price-card reveal">
-      <div class="price-tier">/ Масштаб</div>
+      <div class="price-tier" data-en="/ Scale">/ Масштаб</div>
       <div class="price-amount-wrap">
         <div class="price-amount"><span class="cur">$</span>0.13</div>
         <div class="price-unit">/ install</div>
       </div>
-      <div class="price-vol">От&nbsp;<b>200&nbsp;000</b> установок</div>
+      <div class="price-vol" data-en="From&nbsp;<b>200,000</b> installs">От&nbsp;<b>200&nbsp;000</b> установок</div>
     </div>
     <div class="price-card reveal">
       <div class="price-tier">/ Enterprise</div>
       <div class="price-amount-wrap">
         <div class="price-amount custom">CUSTOM</div>
-        <div class="price-unit">индивидуально</div>
+        <div class="price-unit" data-en="custom">индивидуально</div>
       </div>
-      <div class="price-vol">От&nbsp;<b>200k+</b> установок</div>
+      <div class="price-vol" data-en="From&nbsp;<b>200k+</b> installs">От&nbsp;<b>200k+</b> установок</div>
     </div>
   </div>
 
-  <div class="price-foot">
+  <div class="price-foot" data-en="<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><circle cx='12' cy='12' r='10'/><line x1='12' y1='16' x2='12' y2='12'/><line x1='12' y1='8' x2='12.01' y2='8'/></svg>Minimum deposit: <b>$1500</b> · non-refundable, fully spent on installs">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
     Минимальный депозит: <b>$1500</b> · невозвратный, полностью откручивается в&nbsp;инсталлы
   </div>
@@ -3333,7 +3367,7 @@
   <div class="anchor-grid">
     <div class="anchor-side">
       <span>/ FINAL STATEMENT</span>
-      <span class="big">Время&nbsp;пришло.</span>
+      <span class="big" data-en="It's&nbsp;time.">Время&nbsp;пришло.</span>
     </div>
     <div class="anchor-quote">
       <span class="stroke">your app</span><br>belongs <span class="accent glitch">in&nbsp;top.</span>
@@ -3353,7 +3387,7 @@
     <span class="corner-bl"></span><span class="corner-br"></span>
     <div class="final-lbl">— Telegram —</div>
     <a href="https://t.me/ojakos" class="final-handle">@ojakos</a>
-    <div class="final-channel">Канал: <a href="https://t.me/mayapush">@mayapush</a></div>
+    <div class="final-channel" data-en="Channel: <a href='https://t.me/mayapush'>@mayapush</a>">Канал: <a href="https://t.me/mayapush">@mayapush</a></div>
   </div>
 
   <div class="final-buttons">
@@ -3361,10 +3395,10 @@
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
         <path d="M1 13L13 1M13 1H3M13 1V11" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
       </svg>
-      <span>Написать в&nbsp;личку</span>
+      <span data-en="Message us">Написать в&nbsp;личку</span>
     </a>
     <a href="https://t.me/mayapush" class="final-btn ghost">
-      <span>Канал @mayapush</span>
+      <span data-en="Channel @mayapush">Канал @mayapush</span>
       <span style="opacity: 0.5">→</span>
     </a>
   </div>
@@ -3520,6 +3554,39 @@
 
   renderRank();
   setInterval(tick, 2400);
+
+  /* ─── i18n: simple [data-en] translation with persistence ─── */
+  (function () {
+    const STORAGE = 'maya_lang';
+    const els = document.querySelectorAll('[data-en]');
+    // Snapshot original RU markup once
+    els.forEach(el => { el.dataset.ru = el.innerHTML; });
+
+    function apply(lang) {
+      document.documentElement.lang = lang === 'en' ? 'en' : 'ru';
+      els.forEach(el => {
+        el.innerHTML = (lang === 'en' ? el.dataset.en : el.dataset.ru) || '';
+      });
+      document.querySelectorAll('.lang-toggle button').forEach(b => {
+        b.classList.toggle('active', b.dataset.lang === lang);
+      });
+      try { localStorage.setItem(STORAGE, lang); } catch {}
+    }
+
+    document.querySelectorAll('.lang-toggle button').forEach(b => {
+      b.addEventListener('click', () => apply(b.dataset.lang));
+    });
+
+    // Initial: localStorage → ?lang= → browser → default ru
+    const params = new URLSearchParams(location.search);
+    const stored = (() => { try { return localStorage.getItem(STORAGE); } catch { return null; } })();
+    const fromQuery = params.get('lang');
+    const fromBrowser = (navigator.language || '').toLowerCase().startsWith('en') ? 'en' : 'ru';
+    const initial = ['ru', 'en'].includes(stored) ? stored
+                  : ['ru', 'en'].includes(fromQuery) ? fromQuery
+                  : fromBrowser;
+    apply(initial);
+  })();
 </script>
 
 </body>

@@ -2337,8 +2337,21 @@ document.addEventListener('keydown', (e) => {
    INIT
    ═══════════════════════════════════════════════════ */
 
+function applyHashTab() {
+  // Landing nav links to /dashboard#login or /dashboard#register
+  const h = (location.hash || '').toLowerCase();
+  if (h === '#register' || h === '#signup') {
+    setAuthTab('register');
+    history.replaceState(null, '', location.pathname + location.search);
+  } else if (h === '#login' || h === '#signin') {
+    setAuthTab('login');
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+}
+
 (async function init() {
   checkResetTokenInUrl();
+  applyHashTab();
   if (API.isAuthed()) {
     try { await enterApp(); }
     catch { document.getElementById('authScreen').style.display = 'flex'; }
