@@ -20,20 +20,63 @@ function ownsKeyword(userId, keywordId) {
   ).get(keywordId, userId);
 }
 
+/**
+ * Create keyword(s).
+ * Body:
+ *   { app_id, term: "messenger" }                    — single
+ *   { app_id, term: "messenger,chat,signal" }        — comma/newline separated
+ *   { app_id, terms: ["messenger","chat"] }          — array
+ * Optional: target_pos, plan, daily_cap, country
+ *
+ * Always returns { keywords: [...] }.
+ */
 router.post('/', (req, res) => {
-  const { app_id, term, target_pos = 10, plan = 'standard', daily_cap = 100, country } = req.body || {};
-  if (!app_id || !term) return res.status(400).json({ error: 'missing_fields' });
+  const { app_id, term, terms, target_pos = 10, plan = 'standard', daily_cap = 100, country } = req.body || {};
+  if (!app_id) return res.status(400).json({ error: 'missing_fields' });
   const app = ownsApp(req.user.id, app_id);
   if (!app) return res.status(404).json({ error: 'app_not_found' });
 
+  // Normalise terms list
+  let rawList = [];
+  if (Array.isArray(terms)) rawList = terms;
+  else if (term) rawList = String(term).split(/[\n,;]+/);
+  const list = rawList
+    .map(s => String(s || '').trim())
+    .filter(Boolean)
+    .filter((v, i, a) => a.findIndex(x => x.toLowerCase() === v.toLowerCase()) === i);
+
+  if (!list.length) return res.status(400).json({ error: 'missing_fields' });
+
   const ctry = country || db.prepare('SELECT country FROM apps WHERE id = ?').get(app_id).country;
-  const info = db.prepare(
+  // Skip terms that already exist for this app (case-insensitive)
+  const existing = new Set(
+    db.prepare('SELECT term FROM keywords WHERE app_id = ?').all(app_id)
+      .map(r => r.term.toLowerCase())
+  );
+  const fresh = list.filter(t => !existing.has(t.toLowerCase()));
+
+  const stmt = db.prepare(
     `INSERT INTO keywords (app_id, term, country, target_pos, plan, daily_cap, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(app_id, String(term).trim(), ctry, +target_pos || 10, plan, +daily_cap || 100, now());
-  const kw = db.prepare('SELECT * FROM keywords WHERE id = ?').get(info.lastInsertRowid);
-  broadcast(req.user.id, 'keyword.created', kw);
-  res.json({ keyword: kw });
+  );
+  const ids = [];
+  const tx = db.transaction(() => {
+    for (const t of fresh) {
+      const r = stmt.run(app_id, t, ctry, +target_pos || 10, plan, +daily_cap || 100, now());
+      ids.push(r.lastInsertRowid);
+    }
+  });
+  tx();
+
+  const created = ids.length
+    ? db.prepare(`SELECT * FROM keywords WHERE id IN (${ids.map(()=>'?').join(',')})`).all(...ids)
+    : [];
+  for (const kw of created) broadcast(req.user.id, 'keyword.created', kw);
+
+  res.json({
+    keywords: created,
+    skipped: list.length - fresh.length,
+  });
 });
 
 router.get('/by-app/:appId', (req, res) => {

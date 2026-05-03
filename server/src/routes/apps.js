@@ -200,6 +200,42 @@ router.post('/:id/sync-history', async (req, res) => {
 });
 
 /**
+ * Keyword suggestions for an app (AppTweak top-installs by app).
+ * Optionally enriches with volume/difficulty metrics.
+ *
+ * Query: ?withMetrics=1&limit=20
+ */
+router.get('/:id/suggestions', async (req, res) => {
+  const app = db.prepare('SELECT * FROM apps WHERE id = ? AND user_id = ?')
+    .get(req.params.id, req.user.id);
+  if (!app) return res.status(404).json({ error: 'not_found' });
+  if (!app.store_id) return res.status(400).json({ error: 'no_store_id' });
+
+  const limit = Math.min(+req.query.limit || 30, 50);
+  const suggestions = await appTweak.fetchKeywordSuggestionsForApp(app.store_id, app.country, limit)
+    .catch(() => []);
+
+  // Filter out keywords already tracked
+  const tracked = new Set(
+    db.prepare('SELECT term FROM keywords WHERE app_id = ?').all(app.id).map(r => r.term.toLowerCase())
+  );
+  const filtered = suggestions.filter(s => !tracked.has(s.keyword.toLowerCase()));
+
+  // Enrich with metrics (optional, costs more credits)
+  if (String(req.query.withMetrics) === '1' && filtered.length) {
+    const top = filtered.slice(0, 10);
+    const metrics = await appTweak.fetchKeywordMetrics(top.map(s => s.keyword), app.country)
+      .catch(() => ({}));
+    for (const s of top) {
+      const m = metrics[s.keyword];
+      if (m) Object.assign(s, m);
+    }
+  }
+
+  res.json({ suggestions: filtered });
+});
+
+/**
  * Position matrix for AppBooster-like view.
  * Returns:
  *   {

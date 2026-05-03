@@ -49,6 +49,8 @@
     syncApp:     (id)     => request('POST', '/apps/' + id + '/sync'),
     syncHistory: (id, days = 30) => request('POST', '/apps/' + id + '/sync-history?days=' + days),
     matrix:      (id, days = 30) => request('GET',  '/apps/' + id + '/matrix?days=' + days),
+    suggestions: (id, withMetrics = false) =>
+      request('GET', `/apps/${id}/suggestions${withMetrics ? '?withMetrics=1' : ''}`),
 
     // keywords
     createKeyword: (data) => request('POST', '/keywords', data),

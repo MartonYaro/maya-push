@@ -129,12 +129,60 @@ export async function fetchKeywordHistory(appleId, keywords, country = 'us', day
   return out;
 }
 
+/**
+ * Keyword suggestions based on app's current performance.
+ * Returns [{keyword, ranking, volume, score, is_typo}, ...]
+ */
+export async function fetchKeywordSuggestionsForApp(appleId, country = 'us', limit = 30) {
+  const json = await call('/api/public/store/keywords/suggestions/app.json', {
+    apps: appleId, country, device: 'iphone',
+  });
+  const arr = json && json.result && json.result[appleId] && json.result[appleId].suggestions;
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter(s => !s.is_typo)
+    .slice(0, limit)
+    .map(s => ({
+      keyword: s.keyword,
+      ranking: s.ranking,
+      volume: s.volume,
+      score: s.score,
+    }));
+}
+
+/**
+ * Keyword metrics: volume, difficulty, total results, max reach.
+ * Returns map { keyword → { volume, difficulty, results, max_reach } }
+ */
+export async function fetchKeywordMetrics(keywords, country = 'us') {
+  if (!keywords || !keywords.length) return {};
+  const json = await call('/api/public/store/keywords/metrics/current.json', {
+    keywords, country, device: 'iphone',
+    metrics: 'volume,difficulty,results,max_reach',
+  });
+  const result = json && json.result;
+  const out = {};
+  if (!result) return out;
+  for (const kw of keywords) {
+    const m = result[kw];
+    out[kw] = m ? {
+      volume:     m.volume     ? m.volume.value     : null,
+      difficulty: m.difficulty ? m.difficulty.value : null,
+      results:    m.results    ? m.results.value    : null,
+      max_reach:  m.max_reach  ? m.max_reach.value  : null,
+    } : null;
+  }
+  return out;
+}
+
 export const appTweak = {
   isConfigured,
   fetchAppMetadata,
   fetchKeywordPosition,
   fetchKeywordPositionsBulk,
   fetchKeywordHistory,
+  fetchKeywordSuggestionsForApp,
+  fetchKeywordMetrics,
   parseAppleAppId,
   categoryName,
 };

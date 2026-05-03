@@ -331,6 +331,12 @@ function renderDashboard() {
   const totalKeywords = data.apps.reduce((s, a) => s + a.keywords.length, 0);
   const inTop10 = data.apps.reduce((s, a) =>
     s + a.keywords.filter(k => k.currentPos != null && k.currentPos <= 10).length, 0);
+  // Текущий тариф юзера: лучший по сумме его реальных пополнений за всё время
+  const totalToppedUp = data.transactions
+    .filter(t => t.type === 'topup' && t.status === 'done')
+    .reduce((s, t) => s + (t.amount > 0 ? t.amount : 0), 0);
+  const userTier = tierFromAmount(totalToppedUp || 0);
+  const userPrice = userTier.pricePerInstall;
   const lastTopup = data.transactions
     .filter(t => t.type === 'topup' && t.status === 'done')
     .sort((a, b) => b.createdAt - a.createdAt)[0];
@@ -397,6 +403,11 @@ function renderDashboard() {
           <div class="stat-c-lbl">Баланс</div>
           <div class="stat-c-val"><span class="accent">$${formatNum(data.balance)}</span></div>
           <div class="stat-c-sub">${lastTopup ? 'Последнее пополнение ' + formatDate(lastTopup.createdAt) : 'Пополнений ещё не было'}</div>
+        </div>
+        <div class="stat-c" title="Активный тариф зависит от суммы ваших пополнений. Чем больше депозит — тем дешевле установка.">
+          <div class="stat-c-lbl">Цена за&nbsp;установку</div>
+          <div class="stat-c-val"><span class="accent">${userPrice != null ? '$' + userPrice.toFixed(2) : '—'}</span></div>
+          <div class="stat-c-sub">тариф «${escapeHtml(userTier.name)}»${userPrice != null && data.balance > 0 ? ` · хватит на&nbsp;~${formatNum(Math.floor(data.balance / userPrice))} установок` : ''}</div>
         </div>
         <div class="stat-c">
           <div class="stat-c-lbl">Приложений</div>
@@ -1699,32 +1710,87 @@ let _addKwAppId = null;
 function openAddKw(appId) {
   _addKwAppId = appId;
   document.getElementById('newKw').value = '';
-  document.getElementById('newKwPos').value = '';
-  document.getElementById('newKwTarget').value = '5';
+  document.getElementById('newKwTarget').value = '10';
+  // Reset suggestions
+  document.getElementById('kwSuggestRow').style.display = 'none';
+  document.getElementById('kwSuggestList').innerHTML =
+    '<span style="font-size:12px; color:var(--ink-3);">загружаем…</span>';
   openModal('addKwModal');
+  setTimeout(() => document.getElementById('newKw')?.focus(), 50);
+  loadKwSuggestions(appId);
+}
+
+async function loadKwSuggestions(appId) {
+  const app = data.apps.find(a => a.id === appId);
+  if (!app) return;
+  const row = document.getElementById('kwSuggestRow');
+  const list = document.getElementById('kwSuggestList');
+  try {
+    const r = await API.suggestions(app.apiId);
+    const items = (r.suggestions || []).slice(0, 18);
+    if (!items.length) {
+      list.innerHTML = '<span style="font-size:12px; color:var(--ink-3);">подсказок нет — попробуй после добавления нескольких ключей</span>';
+      row.style.display = 'block';
+      return;
+    }
+    list.innerHTML = items.map(s => `
+      <span class="kw-chip" data-kw="${escapeAttr(s.keyword)}" onclick="addKwFromChip(this)">
+        ${escapeHtml(s.keyword)}
+        ${s.volume ? `<span class="kw-vol">vol&nbsp;${s.volume}</span>` : ''}
+      </span>
+    `).join('');
+    row.style.display = 'block';
+  } catch {
+    list.innerHTML = '<span style="font-size:12px; color:var(--ink-3);">не удалось загрузить</span>';
+    row.style.display = 'block';
+  }
+}
+
+function addKwFromChip(el) {
+  if (el.classList.contains('added')) return;
+  const kw = el.dataset.kw;
+  const ta = document.getElementById('newKw');
+  const cur = ta.value.trim();
+  // Don't duplicate
+  const has = cur.split(/[\n,;]+/).map(s => s.trim().toLowerCase()).includes(kw.toLowerCase());
+  if (!has) {
+    ta.value = cur ? cur + ', ' + kw : kw;
+  }
+  el.classList.add('added');
+  ta.focus();
 }
 
 async function submitAddKw() {
-  const name = document.getElementById('newKw').value.trim();
-  const target = parseInt(document.getElementById('newKwTarget').value, 10) || 5;
-  if (!name) { toast('Укажите ключевое слово', 'error'); return; }
+  const raw = document.getElementById('newKw').value;
+  const target = parseInt(document.getElementById('newKwTarget').value, 10) || 10;
+  const terms = raw.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+  if (!terms.length) { toast('Укажите хотя бы один ключ', 'error'); return; }
   const app = data.apps.find(a => a.id === _addKwAppId);
   if (!app) return;
   try {
-    const r = await API.createKeyword({ app_id: app.apiId, term: name, target_pos: target });
-    app.keywords.unshift(mapKeyword(r.keyword));
+    const r = await API.createKeyword({ app_id: app.apiId, terms, target_pos: target });
+    const created = r.keywords || [];
+    const skipped = r.skipped || 0;
+    if (created.length) {
+      for (const kw of created) app.keywords.unshift(mapKeyword(kw));
+      let msg = `Добавлено ${created.length} ${created.length === 1 ? 'ключ' : 'ключей'}.`;
+      if (skipped) msg += ` Пропущено ${skipped} (уже трекаются).`;
+      msg += ' Тянем позиции…';
+      toast(msg);
+      // Pull fresh ranks + history
+      API.syncApp(app.apiId)
+        .then(() => API.syncHistory(app.apiId, 30))
+        .then(() => API.listByApp(app.apiId))
+        .then(lr => {
+          app.keywords = (lr.keywords || []).map(mapKeyword);
+          _matrixState.appId = null;
+          routeFromHash();
+        })
+        .catch(() => {});
+    } else if (skipped) {
+      toast(`Эти ключи уже трекаются (${skipped})`, 'error');
+    }
     closeModal('addKwModal');
-    toast('Ключ добавлен. Тянем позицию из AppTweak…');
-    // Подтянуть текущую позицию + историю
-    API.syncApp(app.apiId)
-      .then(() => API.syncHistory(app.apiId, 30))
-      .then(() => API.listByApp(app.apiId))
-      .then(lr => {
-        app.keywords = (lr.keywords || []).map(mapKeyword);
-        _matrixState.appId = null;
-        routeFromHash();
-      })
-      .catch(() => {});
     routeFromHash();
   } catch (e) { toast('Ошибка: ' + e.message, 'error'); }
 }
