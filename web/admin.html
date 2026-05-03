@@ -10,7 +10,7 @@
     --bg: #0a0908; --bg-2: #11100e; --bg-3: #181614; --bg-card: #131210;
     --ink: #f0ead8; --ink-2: #b8b0a0; --ink-3: #6a6358;
     --jade: #3aff9f; --jade-soft: rgba(58,255,159,0.08);
-    --red: #d44a3a; --warn: #ffb84d;
+    --red: #d44a3a; --warn: #ffb84d; --blue: #4a9bff;
     --line: rgba(240,234,216,0.08); --line-2: rgba(240,234,216,0.15);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -20,8 +20,9 @@
   .sub { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 28px; }
   .grid { display: grid; gap: 28px; }
   .card { background: var(--bg-card); border: 1px solid var(--line); padding: 22px; }
-  .card h2 { font-size: 16px; font-weight: 700; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
+  .card h2 { font-size: 16px; font-weight: 700; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
   .card h2 .badge { background: var(--jade); color: var(--bg); font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 2px 8px; border-radius: 100px; font-weight: 700; }
+  .card h2 .badge.warn { background: var(--warn); }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); }
   th { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; }
@@ -30,14 +31,21 @@
   .pos { color: var(--jade); font-weight: 600; }
   .neg { color: var(--red); font-weight: 600; }
   .pill { display: inline-block; padding: 2px 8px; font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; border: 1px solid var(--line-2); }
-  .pill.pending { color: var(--warn); border-color: var(--warn); }
-  .pill.done { color: var(--jade); border-color: var(--jade); }
-  .pill.rejected { color: var(--red); border-color: var(--red); }
-  .btn { font-family: inherit; font-size: 12px; padding: 6px 12px; border: 1px solid var(--line-2); background: transparent; color: var(--ink); cursor: pointer; transition: all 0.15s; }
+  .pill.pending, .pill.scheduled { color: var(--warn); border-color: var(--warn); }
+  .pill.done, .pill.delivered { color: var(--jade); border-color: var(--jade); }
+  .pill.in_progress { color: var(--blue); border-color: var(--blue); }
+  .pill.partial { color: var(--warn); border-color: var(--warn); }
+  .pill.rejected, .pill.failed, .pill.cancelled { color: var(--red); border-color: var(--red); }
+  .btn { font-family: inherit; font-size: 12px; padding: 6px 12px; border: 1px solid var(--line-2); background: transparent; color: var(--ink); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
   .btn:hover { border-color: var(--jade); color: var(--jade); }
   .btn.primary { background: var(--jade); color: var(--bg); border-color: var(--jade); font-weight: 600; }
+  .btn.primary:hover { color: var(--bg); }
   .btn.danger:hover { border-color: var(--red); color: var(--red); }
-  .btn + .btn { margin-left: 6px; }
+  .btn.warn:hover { border-color: var(--warn); color: var(--warn); }
+  .btn.blue { border-color: var(--blue); color: var(--blue); }
+  .btn.blue:hover { background: var(--blue); color: var(--bg); }
+  .btn.sm { padding: 4px 8px; font-size: 11px; }
+  .btn + .btn { margin-left: 4px; }
   .auth { max-width: 360px; margin: 80px auto; }
   .auth input { width: 100%; padding: 12px 14px; background: var(--bg-2); border: 1px solid var(--line-2); color: var(--ink); font-family: inherit; font-size: 14px; margin-bottom: 12px; }
   .auth input:focus { outline: none; border-color: var(--jade); }
@@ -46,6 +54,24 @@
   .top { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 28px; }
   .logout { font-size: 12px; color: var(--ink-3); cursor: pointer; }
   .logout:hover { color: var(--red); }
+  .filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .filters select, .filters input { background: var(--bg-2); border: 1px solid var(--line-2); color: var(--ink); padding: 6px 10px; font-family: inherit; font-size: 12px; }
+  .filters label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; }
+  .row-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px; }
+  .stat { background: var(--bg-2); border: 1px solid var(--line); padding: 12px; }
+  .stat-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
+  .stat-value { font-size: 20px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+  .order-progress { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+  .order-progress .bar { display: inline-block; width: 60px; height: 4px; background: var(--line); margin-left: 6px; vertical-align: middle; position: relative; }
+  .order-progress .bar i { display: block; height: 100%; background: var(--jade); }
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--line); margin-bottom: 22px; }
+  .tab { padding: 10px 18px; font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-3); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab.active { color: var(--jade); border-bottom-color: var(--jade); }
+  .tab .count { background: var(--line); color: var(--ink-2); padding: 1px 6px; font-size: 9px; margin-left: 6px; border-radius: 100px; }
+  .tab.active .count { background: var(--jade); color: var(--bg); }
+  .panel { display: none; }
+  .panel.active { display: block; }
 </style>
 </head>
 <body>
@@ -68,20 +94,71 @@
     <div class="logout" onclick="logout()">выйти →</div>
   </div>
 
-  <div class="grid">
+  <div class="tabs">
+    <div class="tab active" data-panel="orders" onclick="switchTab('orders')">Заказы установок <span class="count" id="ordersScheduledCount">0</span></div>
+    <div class="tab" data-panel="topups" onclick="switchTab('topups')">Пополнения <span class="count" id="pendingCount">0</span></div>
+    <div class="tab" data-panel="users" onclick="switchTab('users')">Пользователи <span class="count" id="usersCount">0</span></div>
+    <div class="tab" data-panel="tx" onclick="switchTab('tx')">Все транзакции</div>
+  </div>
+
+  <!-- ORDERS PANEL -->
+  <div class="panel active" id="panel-orders">
     <div class="card">
-      <h2>Заявки на пополнение <span class="badge" id="pendingCount">0</span></h2>
+      <h2>
+        <span>Заказы установок</span>
+        <span class="badge warn" id="ordersScheduledCount2">0</span>
+      </h2>
+
+      <div class="stat-row">
+        <div class="stat"><div class="stat-label">К отправке</div><div class="stat-value" id="statScheduled">0</div></div>
+        <div class="stat"><div class="stat-label">В работе</div><div class="stat-value" id="statProgress">0</div></div>
+        <div class="stat"><div class="stat-label">Доставлено сегодня</div><div class="stat-value" id="statDelivered">0</div></div>
+        <div class="stat"><div class="stat-label">Объём $ к отгрузке</div><div class="stat-value" id="statRevenue">$0</div></div>
+      </div>
+
+      <div class="filters">
+        <label>статус</label>
+        <select id="orderFilterStatus" onchange="loadOrders()">
+          <option value="scheduled">scheduled (к отправке)</option>
+          <option value="in_progress">in_progress (в работе)</option>
+          <option value="delivered">delivered</option>
+          <option value="partial">partial</option>
+          <option value="failed">failed</option>
+          <option value="cancelled">cancelled</option>
+          <option value="">все</option>
+        </select>
+        <label>с</label><input type="date" id="orderFilterFrom" onchange="loadOrders()">
+        <label>по</label><input type="date" id="orderFilterTo" onchange="loadOrders()">
+        <span style="flex:1"></span>
+        <button class="btn primary" onclick="exportOrdersCSV()">⬇ Экспорт CSV для китайца</button>
+        <button class="btn warn" onclick="markAllInProgress()" title="Помечает все scheduled-заказы за текущим фильтром как in_progress">Все → в работе</button>
+      </div>
+
+      <div id="ordersTable"></div>
+    </div>
+  </div>
+
+  <!-- TOPUPS PANEL -->
+  <div class="panel" id="panel-topups">
+    <div class="card">
+      <h2>Заявки на пополнение <span class="badge" id="pendingCount2">0</span></h2>
       <div id="pendingTable"></div>
     </div>
+  </div>
 
+  <!-- USERS PANEL -->
+  <div class="panel" id="panel-users">
+    <div class="card">
+      <h2>Пользователи <span class="badge" id="usersCount2">0</span></h2>
+      <div id="usersTable"></div>
+    </div>
+  </div>
+
+  <!-- TX PANEL -->
+  <div class="panel" id="panel-tx">
     <div class="card">
       <h2>Все транзакции (200 последних)</h2>
       <div id="txTable"></div>
-    </div>
-
-    <div class="card">
-      <h2>Пользователи <span class="badge" id="usersCount">0</span></h2>
-      <div id="usersTable"></div>
     </div>
   </div>
 </div>
@@ -90,8 +167,30 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => (n >= 0 ? '+' : '') + '$' + Number(n || 0).toFixed(2);
+const fmtMoney = (n) => '$' + Number(n || 0).toFixed(2);
+const fmtInt = (n) => Number(n || 0).toLocaleString('en-US').replace(/,/g, ' ');
 const fmtTs = (ts) => new Date(ts).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+const adminFetch = (path, opts = {}) => fetch(path, {
+  ...opts,
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: 'Bearer ' + MayaAPI.getToken(),
+    ...(opts.headers || {}),
+  },
+}).then(async r => {
+  if (!r.ok) {
+    const data = await r.json().catch(() => ({}));
+    throw new Error(data.error || ('http_' + r.status));
+  }
+  return r.json();
+});
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.panel === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+}
 
 async function login() {
   const e = $('email').value.trim(), p = $('password').value;
@@ -112,12 +211,10 @@ function logout() {
 }
 
 async function enter() {
-  // verify admin
   try {
-    await fetch('/api/admin/users', { headers: { Authorization: 'Bearer ' + MayaAPI.getToken() } })
-      .then(r => { if (r.status === 403) throw new Error('not_admin'); if (!r.ok) throw new Error('http_' + r.status); });
+    await adminFetch('/api/admin/users');
   } catch (e) {
-    $('err').textContent = e.message === 'not_admin'
+    $('err').textContent = e.message === 'forbidden'
       ? 'Этот пользователь не админ. Запустите: npm run admin promote <email>'
       : 'Ошибка: ' + e.message;
     return;
@@ -125,24 +222,166 @@ async function enter() {
   $('auth').style.display = 'none';
   $('panel').style.display = 'block';
   refresh();
-  setInterval(refresh, 5000);
+  setInterval(refresh, 7000);
 }
 
 async function refresh() {
   try {
-    const [pending, all, users] = await Promise.all([
-      fetch('/api/admin/transactions?status=pending', { headers: { Authorization: 'Bearer ' + MayaAPI.getToken() } }).then(r => r.json()),
-      fetch('/api/admin/transactions',                  { headers: { Authorization: 'Bearer ' + MayaAPI.getToken() } }).then(r => r.json()),
-      fetch('/api/admin/users',                         { headers: { Authorization: 'Bearer ' + MayaAPI.getToken() } }).then(r => r.json()),
+    const [pending, all, users, ordersScheduled] = await Promise.all([
+      adminFetch('/api/admin/transactions?status=pending'),
+      adminFetch('/api/admin/transactions'),
+      adminFetch('/api/admin/users'),
+      adminFetch('/api/admin/orders?status=scheduled'),
     ]);
     renderPending(pending.transactions || []);
     renderTx(all.transactions || []);
     renderUsers(users.users || []);
+    $('ordersScheduledCount').textContent = ordersScheduled.orders.length;
+    $('ordersScheduledCount2').textContent = ordersScheduled.orders.length;
+    loadOrders();
+    loadStats();
   } catch (e) { console.error(e); }
+}
+
+async function loadStats() {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const [sched, prog, delivered] = await Promise.all([
+      adminFetch('/api/admin/orders?status=scheduled'),
+      adminFetch('/api/admin/orders?status=in_progress'),
+      adminFetch(`/api/admin/orders?status=delivered&from=${today}&to=${today}`),
+    ]);
+    const schedRows = sched.orders || [];
+    const progRows  = prog.orders || [];
+    const dlvRows   = delivered.orders || [];
+    $('statScheduled').textContent = fmtInt(schedRows.reduce((s, r) => s + r.count, 0));
+    $('statProgress').textContent  = fmtInt(progRows.reduce((s, r) => s + r.count, 0));
+    $('statDelivered').textContent = fmtInt(dlvRows.reduce((s, r) => s + (r.delivered || r.count), 0));
+    const revenue = schedRows.reduce((s, r) => s + r.cost, 0) + progRows.reduce((s, r) => s + r.cost, 0);
+    $('statRevenue').textContent = fmtMoney(revenue);
+  } catch (e) { console.warn(e); }
+}
+
+async function loadOrders() {
+  const status = $('orderFilterStatus').value;
+  const from = $('orderFilterFrom').value;
+  const to = $('orderFilterTo').value;
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  try {
+    const { orders } = await adminFetch('/api/admin/orders?' + params.toString());
+    renderOrders(orders || []);
+  } catch (e) { console.warn(e); }
+}
+
+function renderOrders(rows) {
+  if (!rows.length) { $('ordersTable').innerHTML = '<div class="empty">Нет заказов в этом фильтре</div>'; return; }
+  $('ordersTable').innerHTML = `<table>
+    <thead><tr>
+      <th>id</th><th>дата</th><th>клиент</th><th>app</th><th>гео</th><th>ключ</th>
+      <th>план</th><th>кол-во</th><th>$</th><th>статус</th><th>действия</th>
+    </tr></thead>
+    <tbody>${rows.map(r => {
+      const progress = r.delivered ? Math.round((r.delivered / r.count) * 100) : 0;
+      return `<tr>
+        <td class="mono">#${r.id}</td>
+        <td class="mono">${esc(r.date)}</td>
+        <td>
+          <div>${esc(r.user_name || '')}</div>
+          <div style="color:var(--ink-3); font-size:11px">${esc(r.user_email)}</div>
+        </td>
+        <td>
+          <div>${esc(r.app_name)}</div>
+          <a href="${esc(r.app_url)}" target="_blank" style="font-size:11px; font-family:'JetBrains Mono',monospace;">store ↗</a>
+        </td>
+        <td class="mono">${esc((r.country || '').toUpperCase())}</td>
+        <td><b>${esc(r.keyword)}</b></td>
+        <td class="mono">${esc(r.plan)}</td>
+        <td class="mono">
+          ${fmtInt(r.delivered || 0)} / ${fmtInt(r.count)}
+          <span class="order-progress"><span class="bar"><i style="width:${progress}%"></i></span></span>
+        </td>
+        <td class="mono pos">${fmtMoney(r.cost)}</td>
+        <td><span class="pill ${esc(r.status)}">${esc(r.status)}</span></td>
+        <td class="row-actions">${renderOrderActions(r)}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+function renderOrderActions(r) {
+  if (r.status === 'scheduled') return `
+    <button class="btn sm blue" onclick="setOrderStatus(${r.id}, 'in_progress')">→ работа</button>
+    <button class="btn sm danger" onclick="setOrderStatus(${r.id}, 'cancelled')">отмена</button>
+  `;
+  if (r.status === 'in_progress') return `
+    <button class="btn sm primary" onclick="setOrderStatus(${r.id}, 'delivered')">✓ доставлено</button>
+    <button class="btn sm warn" onclick="markPartial(${r.id}, ${r.count})">частично…</button>
+    <button class="btn sm danger" onclick="setOrderStatus(${r.id}, 'failed')">провал</button>
+  `;
+  return `<span style="color:var(--ink-3); font-size:11px;">— завершено —</span>`;
+}
+
+async function setOrderStatus(id, status, extra = {}) {
+  try {
+    const r = await adminFetch(`/api/admin/orders/${id}/status`, {
+      method: 'POST', body: JSON.stringify({ status, ...extra }),
+    });
+    if (r.refund && r.refund > 0) alert(`Возврат $${r.refund.toFixed(2)} зачислен клиенту.`);
+    loadOrders(); loadStats();
+  } catch (e) { alert('Ошибка: ' + e.message); }
+}
+
+function markPartial(id, total) {
+  const v = prompt(`Сколько установок реально доставлено (из ${total})?`);
+  if (v == null) return;
+  const n = parseInt(v, 10);
+  if (isNaN(n) || n < 0 || n > total) { alert('Неверное число'); return; }
+  setOrderStatus(id, 'partial', { delivered: n });
+}
+
+async function exportOrdersCSV() {
+  const status = $('orderFilterStatus').value || 'scheduled';
+  const from = $('orderFilterFrom').value;
+  const to = $('orderFilterTo').value;
+  const params = new URLSearchParams();
+  params.set('status', status);
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  // Open in new tab — browser will download via Content-Disposition
+  const url = '/api/admin/orders.csv?' + params.toString();
+  // Need to attach token via fetch + blob, since GET tab can't carry header.
+  try {
+    const res = await fetch(url, { headers: { Authorization: 'Bearer ' + MayaAPI.getToken() } });
+    if (!res.ok) throw new Error('http_' + res.status);
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `maya-orders-${status}-${Date.now()}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch (e) { alert('Ошибка экспорта: ' + e.message); }
+}
+
+async function markAllInProgress() {
+  const status = $('orderFilterStatus').value;
+  if (status !== 'scheduled') { alert('Эта кнопка работает только для фильтра "scheduled".'); return; }
+  if (!confirm('Пометить все scheduled-заказы по текущему фильтру как in_progress?\nСделай это ПОСЛЕ того, как отправил CSV китайцу.')) return;
+  const from = $('orderFilterFrom').value;
+  const to = $('orderFilterTo').value;
+  try {
+    const r = await adminFetch('/api/admin/orders/mark-in-progress', {
+      method: 'POST', body: JSON.stringify({ from, to }),
+    });
+    alert(`Помечено ${r.updated} заказов.`);
+    loadOrders(); loadStats(); refresh();
+  } catch (e) { alert('Ошибка: ' + e.message); }
 }
 
 function renderPending(rows) {
   $('pendingCount').textContent = rows.length;
+  $('pendingCount2').textContent = rows.length;
   if (!rows.length) { $('pendingTable').innerHTML = '<div class="empty">Нет заявок в ожидании</div>'; return; }
   $('pendingTable').innerHTML = `<table>
     <thead><tr><th>id</th><th>дата</th><th>пользователь</th><th>сумма</th><th>описание</th><th></th></tr></thead>
@@ -178,6 +417,7 @@ function renderTx(rows) {
 
 function renderUsers(rows) {
   $('usersCount').textContent = rows.length;
+  $('usersCount2').textContent = rows.length;
   if (!rows.length) { $('usersTable').innerHTML = '<div class="empty">Нет пользователей</div>'; return; }
   $('usersTable').innerHTML = `<table>
     <thead><tr><th>id</th><th>email</th><th>имя</th><th>роль</th><th>баланс</th><th>прилож.</th><th>создан</th></tr></thead>
@@ -194,17 +434,13 @@ function renderUsers(rows) {
 }
 
 async function confirmTx(id) {
-  try {
-    await fetch('/api/admin/transactions/' + id + '/confirm', { method: 'POST', headers: { Authorization: 'Bearer ' + MayaAPI.getToken() } });
-    refresh();
-  } catch (e) { alert('Ошибка: ' + e.message); }
+  try { await adminFetch('/api/admin/transactions/' + id + '/confirm', { method: 'POST' }); refresh(); }
+  catch (e) { alert('Ошибка: ' + e.message); }
 }
 async function rejectTx(id) {
   if (!confirm('Отклонить транзакцию #' + id + '?')) return;
-  try {
-    await fetch('/api/admin/transactions/' + id + '/reject', { method: 'POST', headers: { Authorization: 'Bearer ' + MayaAPI.getToken() } });
-    refresh();
-  } catch (e) { alert('Ошибка: ' + e.message); }
+  try { await adminFetch('/api/admin/transactions/' + id + '/reject', { method: 'POST' }); refresh(); }
+  catch (e) { alert('Ошибка: ' + e.message); }
 }
 
 (function init() {

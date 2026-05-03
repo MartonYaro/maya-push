@@ -369,6 +369,20 @@ function openLiveStream() {
     'transaction.updated': async () => { await refreshBalanceAndTx(); },
     'transaction.created': async () => { await refreshBalanceAndTx(); },
     'install.scheduled': () => { /* refreshed on demand */ },
+    'install.updated': (inst) => {
+      if (!inst) return;
+      // Show toast on completion / partial / failure
+      const st = inst.status;
+      const labels = {
+        delivered: '✅ Установки доставлены',
+        partial:   '⚠ Частично доставлено — возврат на баланс',
+        failed:    '❌ Заказ не выполнен — возврат на баланс',
+        cancelled: 'Заказ отменён',
+        in_progress: '🚀 Заказ передан в работу',
+      };
+      if (labels[st]) toast(labels[st], st === 'failed' ? 'error' : undefined);
+      refreshBalanceAndTx();
+    },
   });
 }
 

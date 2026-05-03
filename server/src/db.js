@@ -101,6 +101,11 @@ addColumnIfMissing('keywords', 'popularity', 'INTEGER');
 addColumnIfMissing('users', 'email_verified', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('users', 'last_login_at', 'INTEGER');
 
+// Order workflow (v0.3) — tracks supplier delivery
+addColumnIfMissing('installs', 'delivered',  'INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('installs', 'updated_at', 'INTEGER');
+addColumnIfMissing('installs', 'note',       'TEXT');
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS email_verifications (
   token       TEXT PRIMARY KEY,
