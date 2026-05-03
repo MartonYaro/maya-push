@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { broadcast } from '../sse.js';
 import { notifyAdmin, tgTopupConfirmed } from '../services/telegram.js';
 import { audit } from '../services/audit.js';
+import { runBackup } from '../services/backup.js';
 
 const router = Router();
 
@@ -285,6 +286,17 @@ router.post('/orders/mark-in-progress', (req, res) => {
     meta: { count: rows.length },
   });
   res.json({ updated: rows.length });
+});
+
+/** Trigger an on-demand DB backup. Returns the file path on the server. */
+router.post('/backup', async (req, res) => {
+  try {
+    const r = await runBackup();
+    audit(req, { actorId: req.user.id, action: 'admin.backup', meta: { path: r.path } });
+    res.json({ ok: true, ...r });
+  } catch (e) {
+    res.status(500).json({ error: 'backup_failed', message: e.message });
+  }
 });
 
 /** Manual credit/debit by admin. Body: { user_id, amount, description } */

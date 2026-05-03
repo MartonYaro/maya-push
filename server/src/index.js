@@ -14,6 +14,7 @@ import adminRoutes from './routes/admin.js';
 import researchRoutes from './routes/research.js';
 import { attachStream } from './sse.js';
 import { runPositionTick } from './services/positionWorker.js';
+import { runBackup } from './services/backup.js';
 import { securityHeaders, accessLog } from './middleware/security.js';
 
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16) {
@@ -79,6 +80,16 @@ if (cron.validate(cronExpr)) {
   console.warn(`[cron] invalid POSITION_CRON: ${cronExpr}`);
 }
 
+// Daily DB backup (03:17 UTC by default — off-peak, off-the-hour to avoid spikes)
+const backupExpr = process.env.BACKUP_CRON || '17 3 * * *';
+let backupJob = null;
+if (cron.validate(backupExpr)) {
+  backupJob = cron.schedule(backupExpr, () => {
+    runBackup().catch(err => console.error('[cron] backup failed:', err));
+  });
+  console.log(`[cron] daily backup scheduled: ${backupExpr}`);
+}
+
 // Graceful shutdown — important on paid plans where rolling deploys send SIGTERM.
 let shuttingDown = false;
 function shutdown(signal) {
@@ -86,6 +97,7 @@ function shutdown(signal) {
   shuttingDown = true;
   console.log(`[boot] ${signal} received — graceful shutdown`);
   try { cronJob?.stop(); } catch {}
+  try { backupJob?.stop(); } catch {}
   server.close(() => {
     console.log('[boot] http server closed');
     process.exit(0);

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { db, now } from '../db.js';
 import { requireAuth, requireVerified } from '../middleware/auth.js';
 import { appTweak, parseAppleAppId } from '../services/apptweak.js';
+import { LIMITS } from '../config/limits.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -24,6 +25,16 @@ router.post('/', async (req, res) => {
   const { url, store_id, country = 'us', keywords = [] } = req.body || {};
   const appleId = parseAppleAppId(store_id || url);
   if (!appleId) return res.status(400).json({ error: 'invalid_app_id' });
+
+  // Per-user app limit
+  const appsCount = db.prepare('SELECT COUNT(*) AS n FROM apps WHERE user_id = ?').get(req.user.id).n;
+  if (appsCount >= LIMITS.maxAppsPerUser) {
+    return res.status(403).json({
+      error: 'apps_limit_reached',
+      limit: LIMITS.maxAppsPerUser,
+      message: `Лимит ${LIMITS.maxAppsPerUser} приложений на аккаунт. Свяжись с менеджером для расширения.`,
+    });
+  }
 
   const meta = await appTweak.fetchAppMetadata(appleId, country).catch(() => null);
   if (!meta) {

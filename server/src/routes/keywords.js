@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { broadcast } from '../sse.js';
 import { notifyAdmin, tgInstallOrder, tgInstallCancelled } from '../services/telegram.js';
 import { audit } from '../services/audit.js';
+import { LIMITS } from '../config/limits.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -48,6 +49,20 @@ router.post('/', (req, res) => {
     .filter((v, i, a) => a.findIndex(x => x.toLowerCase() === v.toLowerCase()) === i);
 
   if (!list.length) return res.status(400).json({ error: 'missing_fields' });
+
+  // Per-app keyword limit
+  const kwCount = db.prepare('SELECT COUNT(*) AS n FROM keywords WHERE app_id = ?').get(app_id).n;
+  const remaining = LIMITS.maxKeywordsPerApp - kwCount;
+  if (remaining <= 0) {
+    return res.status(403).json({
+      error: 'keywords_limit_reached',
+      limit: LIMITS.maxKeywordsPerApp,
+      message: `Лимит ${LIMITS.maxKeywordsPerApp} ключей на приложение. Удали ненужные или обратись к менеджеру.`,
+    });
+  }
+  if (list.length > remaining) {
+    list.length = remaining; // truncate, don't fail
+  }
 
   const ctry = country || db.prepare('SELECT country FROM apps WHERE id = ?').get(app_id).country;
   // Skip terms that already exist for this app (case-insensitive)
@@ -152,6 +167,18 @@ router.post('/:id/installs', (req, res) => {
   const { date, count } = req.body || {};
   if (!date || count == null) return res.status(400).json({ error: 'missing_fields' });
   const c = Math.max(0, parseInt(count, 10) || 0);
+
+  // Daily anti-fraud cap: hard server-side cap regardless of balance.
+  // Per-keyword daily_cap (set by user) wins if it's lower than global ceiling.
+  const ceiling = Math.min(LIMITS.maxInstallsPerKwDay, kw.daily_cap || LIMITS.maxInstallsPerKwDay);
+  if (c > ceiling) {
+    return res.status(400).json({
+      error: 'daily_cap_exceeded',
+      cap: ceiling,
+      message: `Лимит ${ceiling} установок в день на ключ. Это анти-фрод защита Apple — выше ставить рискованно.`,
+    });
+  }
+
   const price = PRICE_PER_INSTALL[kw.plan] || PRICE_PER_INSTALL.standard;
   const cost = +(c * price).toFixed(2);
 

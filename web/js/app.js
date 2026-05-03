@@ -177,6 +177,9 @@ const AUTH_ERRORS = {
   max_topup_exceeded: 'Слишком большая сумма за раз',
   telegram_required: 'Укажите ваш Telegram — менеджер напишет с реквизитами',
   invalid_telegram: 'Неверный формат Telegram (4-32 символа: буквы, цифры, _)',
+  apps_limit_reached: 'Достигнут лимит приложений. Обратитесь к менеджеру для расширения.',
+  keywords_limit_reached: 'Достигнут лимит ключей на это приложение.',
+  daily_cap_exceeded: 'Слишком много установок в день — анти-фрод защита Apple. Снизь количество.',
 };
 
 function authErrorMessage(err) {
