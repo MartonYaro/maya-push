@@ -29,6 +29,40 @@ app.use(accessLog);
 app.use(cors({ origin: process.env.ALLOW_ORIGIN || '*' }));
 app.use(express.json({ limit: '1mb' }));
 
+/* ─── Domain split: mayapush.com (marketing) vs app.mayapush.com (product) ───
+   Both hosts point to this same Render service. The middleware below ensures:
+     mayapush.com   → only landing + ToS/Privacy + static assets stay; everything
+                      else (e.g. /dashboard, /admin) 301-redirects to app subdomain.
+     app.mayapush.com → root "/" 302-redirects to /dashboard.
+   API endpoints (/api/*) and SSE (/api/stream) work on BOTH hosts so password-reset
+   links and OAuth callbacks remain valid even mid-migration. */
+const APP_HOST       = (process.env.APP_HOST       || 'app.mayapush.com').toLowerCase();
+const MARKETING_HOST = (process.env.MARKETING_HOST || 'mayapush.com').toLowerCase();
+app.use((req, res, next) => {
+  const host = (req.headers.host || '').toLowerCase().split(':')[0];
+
+  // Marketing host: keep landing-only paths, push product paths to app subdomain
+  if (host === MARKETING_HOST || host === 'www.' + MARKETING_HOST) {
+    const p = req.path;
+    const stayOnRoot =
+      p === '/' ||
+      p === '/tos' || p === '/tos.html' ||
+      p === '/privacy' || p === '/privacy.html' ||
+      p.startsWith('/api/') ||
+      /\.(png|jpg|jpeg|gif|svg|ico|webp|css|js|woff2?|ttf|map|txt|xml|json)$/i.test(p);
+    if (!stayOnRoot) {
+      return res.redirect(301, `https://${APP_HOST}${req.originalUrl}`);
+    }
+  }
+
+  // Product host: bare root → dashboard
+  if (host === APP_HOST && (req.path === '/' || req.path === '/index.html')) {
+    return res.redirect(302, '/dashboard');
+  }
+
+  next();
+});
+
 app.get('/api/health', (_req, res) => res.json({
   ok: true,
   ts: Date.now(),

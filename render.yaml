@@ -39,7 +39,11 @@ services:
       - key: DB_PATH
         value: /tmp/maya.db   # ← change to /var/data/maya.db after enabling disk
       - key: PUBLIC_URL
-        sync: false           # set to https://maya-push.onrender.com after first deploy
+        sync: false           # set to https://app.mayapush.com (product domain)
+      - key: APP_HOST
+        value: app.mayapush.com
+      - key: MARKETING_HOST
+        value: mayapush.com
       - key: RESEND_API_KEY
         sync: false           # optional: emails fall back to console log if empty
       - key: EMAIL_FROM
