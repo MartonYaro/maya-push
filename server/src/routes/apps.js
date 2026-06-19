@@ -62,21 +62,30 @@ router.post('/', async (req, res) => {
 
   let ranksMap = {};
   if (cleanKeywords.length) {
-    ranksMap = await appTweak.fetchKeywordPositionsBulk(meta.store_id, cleanKeywords, country)
-      .catch(() => ({}));
+    const useReal = appTweak.isConfigured();
+    ranksMap = useReal
+      ? await appTweak.fetchKeywordPositionsBulk(meta.store_id, cleanKeywords, country).catch(() => ({}))
+      : {};
     const insKw = db.prepare(
       `INSERT INTO keywords (app_id, term, country, target_pos, created_at, current_pos, last_checked_at)
        VALUES (?, ?, ?, 10, ?, ?, ?)`
     );
     const insPos = db.prepare(
-      `INSERT INTO keyword_positions (keyword_id, position, checked_at, source) VALUES (?, ?, ?, 'apptweak')`
+      `INSERT INTO keyword_positions (keyword_id, position, checked_at, source) VALUES (?, ?, ?, ?)`
     );
     const ts = now();
     const tx = db.transaction(() => {
       for (const term of cleanKeywords) {
-        const pos = ranksMap[term] ?? null;
+        // Real rank from AppTweak, or a plausible seed so the matrix isn't empty
+        // (only when AppTweak is not configured — same behaviour as positionWorker).
+        let pos = ranksMap[term] ?? null;
+        let source = 'apptweak';
+        if (pos == null && !useReal) {
+          pos = 20 + Math.floor(Math.random() * 80); // seed between #20 and #100
+          source = 'simulated';
+        }
         const r = insKw.run(appId, term, country, ts, pos, pos != null ? ts : null);
-        if (pos != null) insPos.run(r.lastInsertRowid, pos, ts);
+        if (pos != null) insPos.run(r.lastInsertRowid, pos, ts, source);
       }
     });
     tx();

@@ -21,6 +21,12 @@ export function requireAuth(req, res, next) {
  * Use after `requireAuth`. Returns 403 with code `email_verification_required`.
  */
 export function requireVerified(req, res, next) {
+  // Pilot mode: if email cannot be sent (no RESEND_API_KEY) or auto-verify is on,
+  // verification is impossible — so don't gate features. Becomes strict once
+  // RESEND_API_KEY is configured.
+  const emailConfigured = !!process.env.RESEND_API_KEY;
+  if (!emailConfigured || process.env.AUTH_AUTO_VERIFY === '1') return next();
+
   const u = db.prepare('SELECT email_verified FROM users WHERE id = ?').get(req.user.id);
   if (!u) return res.status(401).json({ error: 'invalid_token' });
   if (!u.email_verified) {

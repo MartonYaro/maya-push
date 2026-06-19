@@ -60,10 +60,17 @@ router.post('/register',
     const exists = db.prepare('SELECT id FROM users WHERE email = ?').get(norm);
     if (exists) return res.status(409).json({ error: 'email_taken' });
 
+    // Pilot mode: if there is no email service configured (or AUTH_AUTO_VERIFY=1),
+    // we cannot send verification links — so don't lock users out. Accounts are
+    // created already-verified. Strict verification turns on automatically once
+    // RESEND_API_KEY is set.
+    const emailConfigured = !!process.env.RESEND_API_KEY;
+    const autoVerify = !emailConfigured || process.env.AUTH_AUTO_VERIFY === '1';
+
     const hash = await bcrypt.hash(password, 10);
     const info = db.prepare(
-      `INSERT INTO users (email, password_hash, name, created_at, email_verified) VALUES (?, ?, ?, ?, 0)`
-    ).run(norm, hash, String(name).trim(), now());
+      `INSERT INTO users (email, password_hash, name, created_at, email_verified) VALUES (?, ?, ?, ?, ?)`
+    ).run(norm, hash, String(name).trim(), now(), autoVerify ? 1 : 0);
 
     const user = { id: info.lastInsertRowid, email: norm, name: String(name).trim() };
 
@@ -72,17 +79,19 @@ router.post('/register',
        VALUES (?, 'system', 0, 'done', 'Регистрация аккаунта', ?)`
     ).run(user.id, now());
 
-    // Issue verification token + send email
-    const token = rand(24);
-    db.prepare(
-      `INSERT INTO email_verifications (token, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)`
-    ).run(token, user.id, now() + VERIFY_TTL_MS, now());
+    // Only issue a verification token + send email when email is actually configured
+    if (!autoVerify) {
+      const token = rand(24);
+      db.prepare(
+        `INSERT INTO email_verifications (token, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)`
+      ).run(token, user.id, now() + VERIFY_TTL_MS, now());
 
-    const verifyUrl = `${PUBLIC_URL()}/api/auth/verify?token=${token}`;
-    sendEmail({
-      to: user.email,
-      ...renderVerifyEmail({ name: user.name, verifyUrl }),
-    }).catch(() => {});
+      const verifyUrl = `${PUBLIC_URL()}/api/auth/verify?token=${token}`;
+      sendEmail({
+        to: user.email,
+        ...renderVerifyEmail({ name: user.name, verifyUrl }),
+      }).catch(() => {});
+    }
 
     // Notify admin via Telegram
     notifyAdmin(tgNewSignup({
@@ -93,7 +102,7 @@ router.post('/register',
     audit(req, { userId: user.id, action: 'auth.register' });
 
     const jwt = signToken(user);
-    res.json({ token: jwt, user, requires_verification: true });
+    res.json({ token: jwt, user, requires_verification: !autoVerify });
   }
 );
 
@@ -123,7 +132,9 @@ router.post('/login',
 
     const user = { id: row.id, email: row.email, name: row.name };
     const token = signToken(user);
-    res.json({ token, user, email_verified: !!row.email_verified });
+    const emailConfigured = !!process.env.RESEND_API_KEY;
+    const verified = (!emailConfigured || process.env.AUTH_AUTO_VERIFY === '1') ? true : !!row.email_verified;
+    res.json({ token, user, email_verified: verified });
   }
 );
 
@@ -136,10 +147,14 @@ router.get('/me', requireAuth, (req, res) => {
     'SELECT id, email, name, role, email_verified, telegram, created_at FROM users WHERE id = ?'
   ).get(req.user.id);
   if (!row) return res.status(404).json({ error: 'not_found' });
+  // Pilot mode: report verified when email service isn't configured, so the
+  // "confirm your email" banner doesn't nag when there's no way to confirm.
+  const emailConfigured = !!process.env.RESEND_API_KEY;
+  const verified = (!emailConfigured || process.env.AUTH_AUTO_VERIFY === '1') ? true : !!row.email_verified;
   res.json({
-    user: row,
+    user: { ...row, email_verified: verified ? 1 : 0 },
     balance: getBalance(row.id),
-    email_verified: !!row.email_verified,
+    email_verified: verified,
   });
 });
 
