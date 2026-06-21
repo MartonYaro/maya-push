@@ -235,14 +235,15 @@ async function initSocialAuth() {
     const renderGoogle = () => {
       const gw = document.getElementById('googleBtnWrap');
       if (window.google && google.accounts && google.accounts.id) {
-        google.accounts.id.initialize({ client_id: cfg.googleClientId, callback: onGoogleCredential });
+        // Make the container visible FIRST so GIS renders into a laid-out element
+        gw.style.display = 'flex';
         gw.innerHTML = '';
         const w = Math.max(220, Math.min(400, gw.clientWidth || 340));
+        google.accounts.id.initialize({ client_id: cfg.googleClientId, callback: onGoogleCredential });
         google.accounts.id.renderButton(gw, {
           theme: 'filled_black', size: 'large', shape: 'rectangular',
           text: 'continue_with', logo_alignment: 'center', width: w,
         });
-        gw.style.display = 'flex';
       } else if (tries++ < 40) {
         setTimeout(renderGoogle, 150);
       }
