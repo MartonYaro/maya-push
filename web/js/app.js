@@ -251,21 +251,31 @@ async function initSocialAuth() {
     renderGoogle();
   }
 
-  // Telegram — official Login Widget (reliable; renders Telegram's own button)
-  if (cfg.telegramBot) {
+  // Telegram — custom button via Telegram.Login.auth (the widget library is
+  // loaded in <head>, so it works with our dynamically-rendered auth screen,
+  // unlike the data-attribute widget which only renders at initial HTML parse).
+  if (cfg.telegramBot && cfg.telegramBotId) {
     const tw = document.getElementById('telegramBtnWrap');
-    tw.innerHTML = '';
-    const s = document.createElement('script');
-    s.src = 'https://telegram.org/js/telegram-widget.js?22';
-    s.async = true;
-    s.setAttribute('data-telegram-login', cfg.telegramBot);
-    s.setAttribute('data-size', 'large');
-    s.setAttribute('data-radius', '8');
-    s.setAttribute('data-onauth', 'onTelegramAuth(user)');
-    s.setAttribute('data-request-access', 'write');
-    tw.appendChild(s);
-    tw.style.display = 'flex';
-    tw.style.justifyContent = 'center';
+    tw.innerHTML = `<button type="button" class="tg-btn" id="tgLoginBtn">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M11.94 2.5a9.5 9.5 0 1 0 0 19 9.5 9.5 0 0 0 0-19Zm4.43 6.49-1.48 6.96c-.11.5-.4.62-.81.39l-2.24-1.65-1.08 1.04c-.12.12-.22.22-.45.22l.16-2.28 4.15-3.75c.18-.16-.04-.25-.28-.09l-5.13 3.23-2.21-.69c-.48-.15-.49-.48.1-.71l8.63-3.33c.4-.15.75.09.62.66Z"/></svg>
+      Войти через Telegram
+    </button>`;
+    tw.style.display = 'block';
+    document.getElementById('tgLoginBtn').onclick = () => {
+      const go = (n = 0) => {
+        if (window.Telegram && window.Telegram.Login && window.Telegram.Login.auth) {
+          window.Telegram.Login.auth(
+            { bot_id: cfg.telegramBotId, request_access: 'write' },
+            (data) => { if (data) window.onTelegramAuth(data); }
+          );
+        } else if (n < 25) {
+          setTimeout(() => go(n + 1), 150);
+        } else {
+          toast('Telegram не загрузился — обнови страницу', 'error');
+        }
+      };
+      go();
+    };
   }
 }
 
