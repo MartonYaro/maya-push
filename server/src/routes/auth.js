@@ -139,6 +139,111 @@ router.post('/login',
 );
 
 /* ═══════════════════════════════════════════════════
+   SOCIAL LOGIN  (Google + Telegram)
+   ═══════════════════════════════════════════════════ */
+
+/** Find-or-create a user from a social provider, link provider id to an
+ *  existing account when the email matches. Returns { id, email, name }. */
+function upsertSocialUser(req, { provider, googleId = null, telegramId = null, email = null, name, avatar = null, telegram = null }) {
+  let row = null;
+  if (googleId)   row = db.prepare('SELECT * FROM users WHERE google_id = ?').get(googleId);
+  if (!row && telegramId) row = db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramId);
+  if (!row && email)      row = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+
+  if (row) {
+    db.prepare(
+      `UPDATE users SET
+         google_id   = COALESCE(?, google_id),
+         telegram_id = COALESCE(?, telegram_id),
+         avatar_url  = COALESCE(?, avatar_url),
+         telegram    = COALESCE(?, telegram),
+         last_login_at = ?
+       WHERE id = ?`
+    ).run(googleId, telegramId, avatar, telegram, now(), row.id);
+    audit(req, { userId: row.id, action: 'auth.login_' + provider });
+    return { id: row.id, email: row.email, name: row.name };
+  }
+
+  const finalEmail = email || `tg${telegramId}@telegram.local`;
+  const info = db.prepare(
+    `INSERT INTO users (email, password_hash, name, created_at, email_verified, provider, google_id, telegram_id, avatar_url, telegram)
+     VALUES (?, '', ?, ?, 1, ?, ?, ?, ?, ?)`
+  ).run(finalEmail, name, now(), provider, googleId, telegramId, avatar, telegram);
+  const id = info.lastInsertRowid;
+  db.prepare(
+    `INSERT INTO transactions (user_id, type, amount, status, description, created_at)
+     VALUES (?, 'system', 0, 'done', ?, ?)`
+  ).run(id, 'Регистрация через ' + provider, now());
+  const u = { id, email: finalEmail, name };
+  audit(req, { userId: id, action: 'auth.register_' + provider });
+  notifyAdmin(tgNewSignup({ user: u, ip: req.headers['x-forwarded-for'] || req.ip, ua: req.headers['user-agent'] })).catch(() => {});
+  return u;
+}
+
+/** Google Sign-In: verify the GIS ID token, then upsert. Body: { credential } */
+router.post('/google',
+  rateLimit({ windowMs: 15 * 60_000, max: 20 }),
+  async (req, res) => {
+    const { credential } = req.body || {};
+    if (!credential) return res.status(400).json({ error: 'missing_credential' });
+
+    let info;
+    try {
+      const r = await fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(credential));
+      info = await r.json();
+      if (!r.ok || !info || !info.sub) throw new Error('invalid');
+    } catch {
+      return res.status(401).json({ error: 'google_verify_failed' });
+    }
+    // If a client id is configured, enforce audience match
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (clientId && info.aud !== clientId) {
+      return res.status(401).json({ error: 'google_aud_mismatch' });
+    }
+
+    const email = (info.email || '').toLowerCase() || null;
+    const name = info.name || (email ? email.split('@')[0] : 'User');
+    const user = upsertSocialUser(req, {
+      provider: 'google', googleId: info.sub, email, name, avatar: info.picture || null,
+    });
+    res.json({ token: signToken(user), user, email_verified: true });
+  }
+);
+
+/** Telegram Login Widget: verify HMAC, then upsert.
+ *  Body: { id, first_name, last_name?, username?, photo_url?, auth_date, hash } */
+router.post('/telegram',
+  rateLimit({ windowMs: 15 * 60_000, max: 20 }),
+  (req, res) => {
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) return res.status(503).json({ error: 'telegram_not_configured' });
+
+    const { hash, ...fields } = req.body || {};
+    if (!hash || !fields.id) return res.status(400).json({ error: 'missing_fields' });
+
+    // Verify per https://core.telegram.org/widgets/login#checking-authorization
+    const checkString = Object.keys(fields).sort()
+      .map(k => `${k}=${fields[k]}`).join('\n');
+    const secret = crypto.createHash('sha256').update(botToken).digest();
+    const hmac = crypto.createHmac('sha256', secret).update(checkString).digest('hex');
+    if (hmac !== hash) return res.status(401).json({ error: 'telegram_verify_failed' });
+
+    if (fields.auth_date && (Date.now() / 1000 - Number(fields.auth_date)) > 86400) {
+      return res.status(401).json({ error: 'telegram_expired' });
+    }
+
+    const tgId = String(fields.id);
+    const name = [fields.first_name, fields.last_name].filter(Boolean).join(' ')
+      || fields.username || ('tg' + tgId);
+    const user = upsertSocialUser(req, {
+      provider: 'telegram', telegramId: tgId, email: null, name,
+      avatar: fields.photo_url || null, telegram: fields.username || null,
+    });
+    res.json({ token: signToken(user), user, email_verified: true });
+  }
+);
+
+/* ═══════════════════════════════════════════════════
    ME
    ═══════════════════════════════════════════════════ */
 

@@ -1071,6 +1071,25 @@
     color: var(--bg);
   }
 
+  .auth-divider {
+    display: flex; align-items: center; gap: 12px;
+    margin: 20px 0 16px; color: var(--ink-3);
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .auth-divider::before, .auth-divider::after {
+    content: ''; flex: 1; height: 1px; background: var(--line);
+  }
+  #googleBtnWrap { display: flex; justify-content: center; }
+  .tg-btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; padding: 12px; cursor: pointer;
+    background: #229ED9; color: #fff; border: none; border-radius: 8px;
+    font-family: inherit; font-size: 14px; font-weight: 600;
+    transition: filter 0.15s;
+  }
+  .tg-btn:hover { filter: brightness(1.08); }
+
   .auth-foot {
     margin-top: 24px;
     padding-top: 20px;
@@ -1755,6 +1774,13 @@
       <button type="submit" class="btn btn-primary" style="width:100%; padding: 14px;" id="authSubmitBtn">Войти →</button>
     </form>
 
+    <!-- Social login (rendered if configured) -->
+    <div id="socialAuth" style="display:none;">
+      <div class="auth-divider"><span>или</span></div>
+      <div id="googleBtnWrap" style="display:none; margin-bottom:10px;"></div>
+      <div id="telegramBtnWrap" style="display:none;"></div>
+    </div>
+
     <div class="auth-foot">
       Нужна помощь? <a href="https://t.me/ojakos">@ojakos</a>
     </div>
@@ -2039,6 +2065,7 @@
 <div class="toast-wrap" id="toastWrap"></div>
 
 
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="/js/api.js"></script>
 <script src="/js/app.js"></script>
 </body>

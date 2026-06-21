@@ -216,6 +216,77 @@ async function handleAuth(e) {
   }
 }
 
+/* ─── Social login (Google + Telegram) ─── */
+
+let _socialInited = false;
+async function initSocialAuth() {
+  if (_socialInited) return;
+  let cfg;
+  try { cfg = await API.getConfig(); } catch { return; }
+  if (!cfg.googleClientId && !cfg.telegramBot) return;
+  _socialInited = true;
+  const wrap = document.getElementById('socialAuth');
+  wrap.style.display = 'block';
+
+  // Google Identity Services — wait for the async GIS script to load, then render
+  if (cfg.googleClientId) {
+    let tries = 0;
+    const renderGoogle = () => {
+      if (window.google && google.accounts && google.accounts.id) {
+        google.accounts.id.initialize({ client_id: cfg.googleClientId, callback: onGoogleCredential });
+        const gw = document.getElementById('googleBtnWrap');
+        gw.innerHTML = '';
+        google.accounts.id.renderButton(gw, {
+          theme: 'filled_black', size: 'large', shape: 'pill', text: 'continue_with', width: 320,
+        });
+        gw.style.display = 'flex';
+      } else if (tries++ < 30) {
+        setTimeout(renderGoogle, 150);
+      }
+    };
+    renderGoogle();
+  }
+
+  // Telegram Login Widget
+  if (cfg.telegramBot) {
+    const tw = document.getElementById('telegramBtnWrap');
+    tw.innerHTML = '';
+    const s = document.createElement('script');
+    s.src = 'https://telegram.org/js/telegram-widget.js?22';
+    s.async = true;
+    s.setAttribute('data-telegram-login', cfg.telegramBot);
+    s.setAttribute('data-size', 'large');
+    s.setAttribute('data-radius', '8');
+    s.setAttribute('data-onauth', 'onTelegramAuth(user)');
+    s.setAttribute('data-request-access', 'write');
+    tw.appendChild(s);
+    tw.style.display = 'block';
+  }
+}
+
+async function onGoogleCredential(response) {
+  try {
+    const res = await API.googleAuth(response.credential);
+    API.setToken(res.token);
+    await enterApp();
+    toast('Вход через Google выполнен');
+  } catch (err) {
+    showAuthError(authErrorMessage(err));
+  }
+}
+
+// Global — referenced by the Telegram widget's data-onauth
+window.onTelegramAuth = async function (user) {
+  try {
+    const res = await API.telegramAuth(user);
+    API.setToken(res.token);
+    await enterApp();
+    toast('Вход через Telegram выполнен');
+  } catch (err) {
+    showAuthError(authErrorMessage(err));
+  }
+};
+
 /* ─── Forgot password ─── */
 
 function openForgotModal(ev) {
@@ -2341,8 +2412,9 @@ function applyHashTab() {
   applyHashTab();
   if (API.isAuthed()) {
     try { await enterApp(); }
-    catch { document.getElementById('authScreen').style.display = 'flex'; }
+    catch { document.getElementById('authScreen').style.display = 'flex'; initSocialAuth(); }
   } else {
     document.getElementById('authScreen').style.display = 'flex';
+    initSocialAuth();
   }
 })();

@@ -107,6 +107,14 @@ addColumnIfMissing('installs', 'delivered',  'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('installs', 'updated_at', 'INTEGER');
 addColumnIfMissing('installs', 'note',       'TEXT');
 
+// Social login (v0.4) — Google + Telegram
+addColumnIfMissing('users', 'google_id',   'TEXT');
+addColumnIfMissing('users', 'telegram_id', 'TEXT');
+addColumnIfMissing('users', 'avatar_url',  'TEXT');
+addColumnIfMissing('users', 'provider',    "TEXT NOT NULL DEFAULT 'email'");
+db.exec(`CREATE INDEX IF NOT EXISTS idx_users_google   ON users(google_id);`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_users_telegram ON users(telegram_id);`);
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS email_verifications (
   token       TEXT PRIMARY KEY,
