@@ -93,9 +93,22 @@ app.get('/api/stream', (req, res) => attachStream(req, res));
 // Static frontend
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const webRoot = resolve(__dirname, '../../web');
-app.use(express.static(webRoot, { extensions: ['html'] }));
-app.get('/', (_req, res) => res.sendFile(resolve(webRoot, 'index.html')));
-app.get('/dashboard', (_req, res) => res.sendFile(resolve(webRoot, 'dashboard.html')));
+// Never let browsers serve stale HTML/JS/CSS — always revalidate.
+// (Static assets are small here; correctness > caching for a fast-moving pilot.)
+const noStore = (res, path) => {
+  if (/\.(html|js|css)$/i.test(path)) {
+    res.setHeader('Cache-Control', 'no-store, must-revalidate');
+  }
+};
+app.use(express.static(webRoot, { extensions: ['html'], setHeaders: noStore }));
+app.get('/', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store, must-revalidate');
+  res.sendFile(resolve(webRoot, 'index.html'));
+});
+app.get('/dashboard', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store, must-revalidate');
+  res.sendFile(resolve(webRoot, 'dashboard.html'));
+});
 
 // JSON error handler
 app.use((err, _req, res, _next) => {
