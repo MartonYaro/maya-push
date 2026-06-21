@@ -145,6 +145,18 @@ CREATE INDEX IF NOT EXISTS idx_audit_user_time   ON audit_log(user_id, created_a
 CREATE INDEX IF NOT EXISTS idx_audit_action_time ON audit_log(action, created_at);
 `);
 
+// Auto-promote admins from ADMIN_EMAILS (comma-separated) at boot.
+// Lets you grant admin without CLI — just set the env var and redeploy.
+(function syncAdminRoles() {
+  const raw = process.env.ADMIN_EMAILS || '';
+  const emails = raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  if (!emails.length) return;
+  const upd = db.prepare('UPDATE users SET role = ? WHERE LOWER(email) = ?');
+  const tx = db.transaction(() => { for (const e of emails) upd.run('admin', e); });
+  try { tx(); console.log(`[boot] admin roles synced for: ${emails.join(', ')}`); }
+  catch (e) { console.warn('[boot] admin sync failed:', e.message); }
+})();
+
 export function getBalance(userId) {
   const row = db.prepare(
     `SELECT COALESCE(SUM(amount), 0) AS bal

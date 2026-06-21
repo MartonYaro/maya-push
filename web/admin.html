@@ -420,15 +420,22 @@ function renderUsers(rows) {
   $('usersCount2').textContent = rows.length;
   if (!rows.length) { $('usersTable').innerHTML = '<div class="empty">Нет пользователей</div>'; return; }
   $('usersTable').innerHTML = `<table>
-    <thead><tr><th>id</th><th>email</th><th>имя</th><th>роль</th><th>баланс</th><th>прилож.</th><th>создан</th></tr></thead>
+    <thead><tr><th>id</th><th>клиент</th><th>вход</th><th>тариф</th><th>депозит всего</th><th>баланс</th><th>прилож.</th><th>ключи</th><th>роль</th><th>создан</th></tr></thead>
     <tbody>${rows.map(u => `<tr>
       <td class="mono">#${u.id}</td>
-      <td>${esc(u.email)}</td>
-      <td>${esc(u.name)}</td>
-      <td><span class="pill ${u.role === 'admin' ? 'done' : ''}">${esc(u.role)}</span></td>
+      <td>
+        <div>${esc(u.name)}</div>
+        <div style="color:var(--ink-3); font-size:11px">${esc(u.email)}</div>
+        ${u.telegram ? `<a href="https://t.me/${esc(u.telegram)}" target="_blank" style="font-size:11px">@${esc(u.telegram)}</a>` : ''}
+      </td>
+      <td class="mono" style="font-size:11px; color:var(--ink-2)">${esc(u.provider || 'email')}</td>
+      <td><span class="pill ${u.total_deposited >= 5000 ? 'done' : ''}">${esc(u.tariff || '—')}</span></td>
+      <td class="mono">${fmtMoney(u.total_deposited)}</td>
       <td class="mono pos">${fmt(u.balance)}</td>
       <td class="mono">${u.apps_count}</td>
-      <td class="mono">${fmtTs(u.created_at)}</td>
+      <td class="mono">${u.keywords_count}</td>
+      <td><span class="pill ${u.role === 'admin' ? 'done' : ''}">${esc(u.role)}</span></td>
+      <td class="mono" style="font-size:11px">${fmtTs(u.created_at)}</td>
     </tr>`).join('')}</tbody>
   </table>`;
 }

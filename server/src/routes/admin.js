@@ -18,11 +18,17 @@ router.use(requireAuth, requireAdmin);
 
 router.get('/users', (_req, res) => {
   const rows = db.prepare(`
-    SELECT u.id, u.email, u.name, u.role, u.created_at,
+    SELECT u.id, u.email, u.name, u.role, u.provider, u.telegram, u.created_at, u.last_login_at,
       COALESCE((SELECT SUM(amount) FROM transactions WHERE user_id = u.id AND status = 'done'), 0) AS balance,
-      (SELECT COUNT(*) FROM apps WHERE user_id = u.id) AS apps_count
+      COALESCE((SELECT SUM(amount) FROM transactions WHERE user_id = u.id AND status = 'done' AND type = 'topup' AND amount > 0), 0) AS total_deposited,
+      (SELECT COUNT(*) FROM apps WHERE user_id = u.id) AS apps_count,
+      (SELECT COUNT(*) FROM keywords k JOIN apps a ON a.id = k.app_id WHERE a.user_id = u.id) AS keywords_count,
+      COALESCE((SELECT SUM(i.cost) FROM installs i JOIN keywords k ON k.id = i.keyword_id JOIN apps a ON a.id = k.app_id WHERE a.user_id = u.id), 0) AS spent_on_installs
     FROM users u ORDER BY u.created_at DESC
   `).all();
+  // Derive tariff tier from total deposited (same thresholds as PRICING_TIERS)
+  const tier = (dep) => dep >= 50000 ? 'Enterprise' : dep >= 15000 ? 'Scale ($0.13)' : dep >= 5000 ? 'Volume ($0.25)' : dep >= 1500 ? 'Standard ($0.30)' : '—';
+  for (const r of rows) r.tariff = tier(r.total_deposited);
   res.json({ users: rows });
 });
 
