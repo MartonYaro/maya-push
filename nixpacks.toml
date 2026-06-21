@@ -1,0 +1,6 @@
+# Provide the toolchain better-sqlite3 needs to compile (node-gyp) when no
+# prebuilt binary is available in the Railway build environment.
+providers = ["node"]
+
+[phases.setup]
+aptPkgs = ["python3", "build-essential"]
