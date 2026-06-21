@@ -1,0 +1,13 @@
+{
+  "name": "maya-push",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MAYA Push — root wrapper so Railway/Nixpacks builds the server in /server without a custom Root Directory.",
+  "scripts": {
+    "start": "node server/src/index.js",
+    "postinstall": "npm install --prefix server"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
