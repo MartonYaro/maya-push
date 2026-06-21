@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
-import { db, now, getBalance } from '../db.js';
+import { db, now, getBalance, maybePromoteAdmin } from '../db.js';
 import { signToken, requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { sendEmail, renderVerifyEmail, renderResetEmail, renderWelcomeEmail } from '../services/email.js';
@@ -128,6 +128,7 @@ router.post('/login',
     }
 
     db.prepare('UPDATE users SET last_login_at = ? WHERE id = ?').run(now(), row.id);
+    maybePromoteAdmin(row.email);
     audit(req, { userId: row.id, action: 'auth.login' });
 
     const user = { id: row.id, email: row.email, name: row.name };
@@ -160,6 +161,7 @@ function upsertSocialUser(req, { provider, googleId = null, telegramId = null, e
          last_login_at = ?
        WHERE id = ?`
     ).run(googleId, telegramId, avatar, telegram, now(), row.id);
+    maybePromoteAdmin(row.email);
     audit(req, { userId: row.id, action: 'auth.login_' + provider });
     return { id: row.id, email: row.email, name: row.name };
   }
@@ -175,6 +177,7 @@ function upsertSocialUser(req, { provider, googleId = null, telegramId = null, e
      VALUES (?, 'system', 0, 'done', ?, ?)`
   ).run(id, 'Регистрация через ' + provider, now());
   const u = { id, email: finalEmail, name };
+  maybePromoteAdmin(finalEmail);
   audit(req, { userId: id, action: 'auth.register_' + provider });
   notifyAdmin(tgNewSignup({ user: u, ip: req.headers['x-forwarded-for'] || req.ip, ua: req.headers['user-agent'] })).catch(() => {});
   return u;

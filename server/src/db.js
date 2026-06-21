@@ -145,15 +145,27 @@ CREATE INDEX IF NOT EXISTS idx_audit_user_time   ON audit_log(user_id, created_a
 CREATE INDEX IF NOT EXISTS idx_audit_action_time ON audit_log(action, created_at);
 `);
 
-// Auto-promote admins from ADMIN_EMAILS (comma-separated) at boot.
-// Lets you grant admin without CLI — just set the env var and redeploy.
+// Admins from ADMIN_EMAILS (comma-separated).
+const ADMIN_SET = new Set(
+  (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+);
+
+// Promote a single user if their email is in ADMIN_EMAILS. Called on every login
+// so accounts created AFTER boot (e.g. first Google sign-in) still get admin.
+export function maybePromoteAdmin(email) {
+  if (!email || !ADMIN_SET.has(String(email).toLowerCase())) return;
+  try {
+    db.prepare("UPDATE users SET role = 'admin' WHERE LOWER(email) = ? AND role != 'admin'")
+      .run(String(email).toLowerCase());
+  } catch (e) { console.warn('[admin] promote failed:', e.message); }
+}
+
+// Promote any existing matching users at boot too.
 (function syncAdminRoles() {
-  const raw = process.env.ADMIN_EMAILS || '';
-  const emails = raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-  if (!emails.length) return;
+  if (!ADMIN_SET.size) return;
   const upd = db.prepare('UPDATE users SET role = ? WHERE LOWER(email) = ?');
-  const tx = db.transaction(() => { for (const e of emails) upd.run('admin', e); });
-  try { tx(); console.log(`[boot] admin roles synced for: ${emails.join(', ')}`); }
+  const tx = db.transaction(() => { for (const e of ADMIN_SET) upd.run('admin', e); });
+  try { tx(); console.log(`[boot] admin roles synced for: ${[...ADMIN_SET].join(', ')}`); }
   catch (e) { console.warn('[boot] admin sync failed:', e.message); }
 })();
 
