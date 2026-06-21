@@ -210,19 +210,25 @@ function logout() {
   $('auth').style.display = 'block';
 }
 
+let _refreshTimer = null;
 async function enter() {
   try {
     await adminFetch('/api/admin/users');
   } catch (e) {
-    $('err').textContent = e.message === 'forbidden'
-      ? 'Этот пользователь не админ. Запустите: npm run admin promote <email>'
-      : 'Ошибка: ' + e.message;
+    // Show the login screen with a clear message instead of a blank black page
+    $('panel').style.display = 'none';
+    $('auth').style.display = 'block';
+    $('err').textContent = (e.message === 'forbidden' || e.status === 403)
+      ? 'Этот аккаунт не админ. Попроси добавить твой email в ADMIN_EMAILS.'
+      : (e.message === 'no_token' || e.message === 'invalid_token' || e.status === 401)
+        ? 'Войди под админ-аккаунтом.'
+        : 'Ошибка: ' + e.message;
     return;
   }
   $('auth').style.display = 'none';
   $('panel').style.display = 'block';
   refresh();
-  setInterval(refresh, 7000);
+  if (!_refreshTimer) _refreshTimer = setInterval(refresh, 7000);
 }
 
 async function refresh() {

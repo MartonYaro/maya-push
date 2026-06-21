@@ -67,6 +67,7 @@ app.use((req, res, next) => {
 app.get('/api/config', (_req, res) => res.json({
   googleClientId: process.env.GOOGLE_CLIENT_ID || null,
   telegramBot: process.env.TELEGRAM_BOT_USERNAME || null,
+  telegramBotId: process.env.TELEGRAM_BOT_TOKEN ? String(process.env.TELEGRAM_BOT_TOKEN).split(':')[0] : null,
 }));
 
 app.get('/api/health', (_req, res) => res.json({
