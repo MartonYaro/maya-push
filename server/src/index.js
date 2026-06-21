@@ -68,7 +68,7 @@ app.get('/api/health', (_req, res) => res.json({
   ts: Date.now(),
   uptime: Math.round(process.uptime()),
   env: process.env.NODE_ENV || 'development',
-  apptweak: !!process.env.APPTWEAK_API_KEY,
+  store: true,
   email: !!process.env.RESEND_API_KEY,
   telegram: !!process.env.TELEGRAM_BOT_TOKEN,
 }));

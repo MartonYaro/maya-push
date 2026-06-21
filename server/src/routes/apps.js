@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db, now } from '../db.js';
 import { requireAuth, requireVerified } from '../middleware/auth.js';
-import { appTweak, parseAppleAppId } from '../services/apptweak.js';
+import { appStore, parseAppleAppId } from '../services/appstore.js';
 import { LIMITS } from '../config/limits.js';
 
 const router = Router();
@@ -17,7 +17,7 @@ router.get('/', (req, res) => {
 /**
  * Create app.
  * Body: { url | store_id, country?, keywords?: string[] }
- *  - Metadata, rating, developer, category, icon — pulled from AppTweak.
+ *  - Metadata, rating, developer, category, icon — pulled from the App Store.
  *  - If `keywords` array given, they are inserted and their current ranks
  *    are fetched immediately in one bulk call.
  */
@@ -36,11 +36,11 @@ router.post('/', async (req, res) => {
     });
   }
 
-  const meta = await appTweak.fetchAppMetadata(appleId, country).catch(() => null);
+  const meta = await appStore.fetchAppMetadata(appleId, country).catch(() => null);
   if (!meta) {
     return res.status(404).json({
-      error: 'app_not_found_in_apptweak',
-      hint: 'Проверьте URL приложения и страну',
+      error: 'app_not_found',
+      hint: 'Проверьте ссылку на приложение и страну App Store',
     });
   }
 
@@ -62,30 +62,22 @@ router.post('/', async (req, res) => {
 
   let ranksMap = {};
   if (cleanKeywords.length) {
-    const useReal = appTweak.isConfigured();
-    ranksMap = useReal
-      ? await appTweak.fetchKeywordPositionsBulk(meta.store_id, cleanKeywords, country).catch(() => ({}))
-      : {};
+    // Live ranks parsed straight from App Store search results.
+    ranksMap = await appStore.fetchKeywordPositionsBulk(meta.store_id, cleanKeywords, country)
+      .catch(() => ({}));
     const insKw = db.prepare(
       `INSERT INTO keywords (app_id, term, country, target_pos, created_at, current_pos, last_checked_at)
        VALUES (?, ?, ?, 10, ?, ?, ?)`
     );
     const insPos = db.prepare(
-      `INSERT INTO keyword_positions (keyword_id, position, checked_at, source) VALUES (?, ?, ?, ?)`
+      `INSERT INTO keyword_positions (keyword_id, position, checked_at, source) VALUES (?, ?, ?, 'store')`
     );
     const ts = now();
     const tx = db.transaction(() => {
       for (const term of cleanKeywords) {
-        // Real rank from AppTweak, or a plausible seed so the matrix isn't empty
-        // (only when AppTweak is not configured — same behaviour as positionWorker).
-        let pos = ranksMap[term] ?? null;
-        let source = 'apptweak';
-        if (pos == null && !useReal) {
-          pos = 20 + Math.floor(Math.random() * 80); // seed between #20 and #100
-          source = 'simulated';
-        }
+        const pos = ranksMap[term] ?? null;  // null = app not in top-200 for this query
         const r = insKw.run(appId, term, country, ts, pos, pos != null ? ts : null);
-        if (pos != null) insPos.run(r.lastInsertRowid, pos, ts, source);
+        if (pos != null) insPos.run(r.lastInsertRowid, pos, ts);
       }
     });
     tx();
@@ -143,7 +135,7 @@ router.post('/:id/sync', async (req, res) => {
 
   // metadata refresh
   if (app.store_id) {
-    const meta = await appTweak.fetchAppMetadata(app.store_id, app.country).catch(() => null);
+    const meta = await appStore.fetchAppMetadata(app.store_id, app.country).catch(() => null);
     if (meta) {
       db.prepare(
         `UPDATE apps SET name=COALESCE(?,name), icon_url=COALESCE(?,icon_url),
@@ -159,10 +151,10 @@ router.post('/:id/sync', async (req, res) => {
   const kws = db.prepare(`SELECT id, term FROM keywords WHERE app_id = ? AND status='active'`).all(app.id);
   let updated = 0;
   if (kws.length && app.store_id) {
-    const ranks = await appTweak.fetchKeywordPositionsBulk(app.store_id, kws.map(k => k.term), app.country)
+    const ranks = await appStore.fetchKeywordPositionsBulk(app.store_id, kws.map(k => k.term), app.country)
       .catch(() => ({}));
     const ts = now();
-    const insPos = db.prepare(`INSERT INTO keyword_positions (keyword_id, position, checked_at, source) VALUES (?, ?, ?, 'apptweak')`);
+    const insPos = db.prepare(`INSERT INTO keyword_positions (keyword_id, position, checked_at, source) VALUES (?, ?, ?, 'store')`);
     const updKw = db.prepare(`UPDATE keywords SET current_pos = ?, last_checked_at = ? WHERE id = ?`);
     const tx = db.transaction(() => {
       for (const k of kws) {
@@ -180,79 +172,26 @@ router.post('/:id/sync', async (req, res) => {
 });
 
 /**
- * Pull historical ranks (last N days) from AppTweak for all keywords of this app
- * and persist into keyword_positions. One API call, real history populated.
+ * History backfill is not available from the free App Store endpoints —
+ * position history is built up organically from the scheduled snapshots
+ * (cron) over time. This endpoint is a no-op kept for API compatibility.
  */
-router.post('/:id/sync-history', requireVerified, async (req, res) => {
-  const days = Math.min(+req.query.days || 30, 90);
-  const app = db.prepare('SELECT * FROM apps WHERE id = ? AND user_id = ?')
+router.post('/:id/sync-history', async (req, res) => {
+  const app = db.prepare('SELECT id FROM apps WHERE id = ? AND user_id = ?')
     .get(req.params.id, req.user.id);
   if (!app) return res.status(404).json({ error: 'not_found' });
-  if (!app.store_id) return res.status(400).json({ error: 'no_store_id' });
-
-  const kws = db.prepare(`SELECT id, term FROM keywords WHERE app_id = ?`).all(app.id);
-  if (!kws.length) return res.json({ inserted: 0 });
-
-  const hist = await appTweak.fetchKeywordHistory(app.store_id, kws.map(k => k.term), app.country, days)
-    .catch(() => ({}));
-
-  // Wipe existing apptweak rows in window, then insert fresh.
-  const since = Date.now() - days * 86400_000;
-  const ins = db.prepare(`INSERT INTO keyword_positions (keyword_id, position, checked_at, source) VALUES (?, ?, ?, 'apptweak_history')`);
-  const wipe = db.prepare(`DELETE FROM keyword_positions WHERE keyword_id = ? AND checked_at >= ? AND source LIKE 'apptweak%'`);
-  let inserted = 0;
-  const tx = db.transaction(() => {
-    for (const k of kws) {
-      const arr = hist[k.term] || [];
-      if (!arr.length) continue;
-      wipe.run(k.id, since);
-      for (const p of arr) {
-        if (p.value == null) continue;
-        const ts = Date.parse(p.date + 'T12:00:00Z');
-        if (!ts) continue;
-        ins.run(k.id, p.value, ts);
-        inserted++;
-      }
-    }
-  });
-  tx();
-  res.json({ inserted, days });
+  res.json({ inserted: 0, note: 'history_builds_over_time' });
 });
 
 /**
- * Keyword suggestions for an app (AppTweak top-installs by app).
- * Optionally enriches with volume/difficulty metrics.
- *
- * Query: ?withMetrics=1&limit=20
+ * Keyword suggestions — not available from the free endpoints yet
+ * ("в разработке"). Returns an empty list so the UI degrades gracefully.
  */
-router.get('/:id/suggestions', requireVerified, async (req, res) => {
-  const app = db.prepare('SELECT * FROM apps WHERE id = ? AND user_id = ?')
+router.get('/:id/suggestions', async (req, res) => {
+  const app = db.prepare('SELECT id FROM apps WHERE id = ? AND user_id = ?')
     .get(req.params.id, req.user.id);
   if (!app) return res.status(404).json({ error: 'not_found' });
-  if (!app.store_id) return res.status(400).json({ error: 'no_store_id' });
-
-  const limit = Math.min(+req.query.limit || 30, 50);
-  const suggestions = await appTweak.fetchKeywordSuggestionsForApp(app.store_id, app.country, limit)
-    .catch(() => []);
-
-  // Filter out keywords already tracked
-  const tracked = new Set(
-    db.prepare('SELECT term FROM keywords WHERE app_id = ?').all(app.id).map(r => r.term.toLowerCase())
-  );
-  const filtered = suggestions.filter(s => !tracked.has(s.keyword.toLowerCase()));
-
-  // Enrich with metrics (optional, costs more credits)
-  if (String(req.query.withMetrics) === '1' && filtered.length) {
-    const top = filtered.slice(0, 10);
-    const metrics = await appTweak.fetchKeywordMetrics(top.map(s => s.keyword), app.country)
-      .catch(() => ({}));
-    for (const s of top) {
-      const m = metrics[s.keyword];
-      if (m) Object.assign(s, m);
-    }
-  }
-
-  res.json({ suggestions: filtered });
+  res.json({ suggestions: [], in_development: true });
 });
 
 /**

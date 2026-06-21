@@ -2,11 +2,11 @@
  * Position-tracking worker.
  *
  * Strategy: group active keywords by app, fetch ranks for each app in ONE
- * AppTweak call (cheaper than per-keyword), persist into keyword_positions
+ * App Store search per keyword, persist into keyword_positions
  * and broadcast SSE.
  */
 import { db, now } from '../db.js';
-import { appTweak } from './apptweak.js';
+import { appStore } from './appstore.js';
 import { broadcast } from '../sse.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -31,7 +31,6 @@ export async function runPositionTick({ logger = console } = {}) {
     WHERE a.status = 'active'
   `).all();
 
-  const useReal = appTweak.isConfigured();
   let checked = 0;
 
   for (const app of groups) {
@@ -40,19 +39,25 @@ export async function runPositionTick({ logger = console } = {}) {
     ).all(app.app_id);
     if (!kws.length) continue;
 
+    // Parse live ranks straight from the App Store search results.
     let ranks = {};
-    let source = useReal && app.store_id ? 'apptweak' : 'simulated';
-    if (useReal && app.store_id) {
+    let source = 'store';
+    let useReal = !!app.store_id;
+    if (app.store_id) {
       try {
-        ranks = await appTweak.fetchKeywordPositionsBulk(
+        ranks = await appStore.fetchKeywordPositionsBulk(
           app.store_id, kws.map(k => k.term), app.country
         );
       } catch (e) {
-        logger.warn('[worker] bulk failed:', e.message);
+        logger.warn('[worker] store fetch failed:', e.message);
         ranks = {};
+        useReal = false;
         source = 'simulated_fallback';
       }
       await sleep(300);
+    } else {
+      useReal = false;
+      source = 'simulated';
     }
 
     const ts = now();
@@ -79,6 +84,6 @@ export async function runPositionTick({ logger = console } = {}) {
     tx();
   }
 
-  logger.log(`[worker] tick done: ${checked} keywords, real=${useReal}`);
+  logger.log(`[worker] tick done: ${checked} keywords (App Store live ranks)`);
   return { checked };
 }

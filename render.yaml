@@ -28,10 +28,6 @@ services:
         value: production
       - key: JWT_SECRET
         generateValue: true
-      - key: APPTWEAK_API_KEY
-        sync: false           # set in Render dashboard
-      - key: APPTWEAK_BASE_URL
-        value: https://public-api.apptweak.com
       - key: POSITION_CRON
         value: "0 */6 * * *"
       - key: ALLOW_ORIGIN

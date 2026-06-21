@@ -1,57 +1,41 @@
 import { Router } from 'express';
-import { requireAuth, requireVerified } from '../middleware/auth.js';
-import { appTweak } from '../services/apptweak.js';
+import { requireAuth } from '../middleware/auth.js';
+import { appStore } from '../services/appstore.js';
 
 const router = Router();
-router.use(requireAuth, requireVerified);
+router.use(requireAuth);
 
 /**
- * Keyword research / explorer.
- *   GET /api/research/keyword?keyword=fitness&country=us&topApps=5
+ * Keyword research / explorer — live App Store search.
+ *   GET /api/research/keyword?keyword=fitness&country=us&topApps=10
  *
  * Returns:
  *   {
  *     keyword, country,
- *     metrics: { volume, difficulty, results, max_reach },
- *     totalApps,
+ *     metrics: null,            // search volume / difficulty — "в разработке"
+ *     metrics_in_development: true,
+ *     totalApps,                // how many apps the store returned (≤200)
  *     topApps: [ { position, store_id, name, icon_url, developer, category, rating } ]
  *   }
- *
- * AppTweak credit cost ≈ 11 (metrics) + 1 (search) + 5×N/5 metadata.
- * Default topApps=5 → ~13 credits per call.
  */
 router.get('/keyword', async (req, res) => {
   const keyword = String(req.query.keyword || '').trim();
   const country = (String(req.query.country || 'us')).toLowerCase();
-  const topApps = Math.min(Math.max(+req.query.topApps || 5, 0), 25);
+  const topApps = Math.min(Math.max(+req.query.topApps || 10, 0), 25);
 
   if (!keyword) return res.status(400).json({ error: 'missing_keyword' });
-  if (!appTweak.isConfigured()) {
-    return res.status(503).json({ error: 'apptweak_not_configured' });
-  }
 
-  const [metricsMap, ids] = await Promise.all([
-    appTweak.fetchKeywordMetrics([keyword], country).catch(() => ({})),
-    appTweak.fetchKeywordSearchResults(keyword, country).catch(() => []),
-  ]);
-  const metrics = metricsMap[keyword] || null;
+  const results = await appStore.fetchKeywordSearchResults(keyword, country, topApps)
+    .catch(() => []);
 
-  const topIds = ids.slice(0, topApps);
-  const meta = topIds.length
-    ? await appTweak.fetchAppsMetadata(topIds, country).catch(() => ({}))
-    : {};
-
-  const apps = topIds.map((id, i) => ({
-    position: i + 1,
-    store_id: id,
-    ...(meta[id] || { name: 'App #' + id }),
-  }));
+  const apps = results.map((r, i) => ({ position: i + 1, ...r }));
 
   res.json({
     keyword,
     country,
-    metrics,
-    totalApps: ids.length,
+    metrics: null,
+    metrics_in_development: true,   // volume/difficulty not available yet
+    totalApps: apps.length,
     topApps: apps,
   });
 });

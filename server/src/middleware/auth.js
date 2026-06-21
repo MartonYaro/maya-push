@@ -15,7 +15,7 @@ export function requireAuth(req, res, next) {
 }
 
 /**
- * Block endpoints that consume AppTweak credits or paid resources
+ * Block endpoints that consume paid resources
  * for users who haven't confirmed their email yet.
  *
  * Use after `requireAuth`. Returns 403 with code `email_verification_required`.

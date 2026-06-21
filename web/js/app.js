@@ -1082,7 +1082,7 @@ function renderExplorer() {
     <div class="page">
       <div class="page-header">
         <div>
-          <div class="page-subtitle">/ Исследование запросов · AppTweak</div>
+          <div class="page-subtitle">/ Исследование запросов · App Store</div>
           <div class="page-title">Поиск <span class="accent">ключей</span></div>
         </div>
       </div>
@@ -1090,21 +1090,11 @@ function renderExplorer() {
       <div class="hint">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
         <div>
-          <b>Что это?</b> Введи поисковый запрос — увидишь его <b>объём поиска</b>, <b>сложность</b>,
-          сколько приложений ранжируется, и <b>топ-10 приложений</b> которые сейчас стоят на этом ключе.
-          Используй для&nbsp;разведки перед запуском кампании.
+          <b>Что это?</b> Введи поисковый запрос — увидишь <b>топ приложений</b>, которые
+          сейчас стоят на этом ключе в&nbsp;App&nbsp;Store. Используй для&nbsp;разведки перед запуском кампании.
+          <span style="opacity:.7">Объём поиска и сложность — в&nbsp;разработке.</span>
         </div>
       </div>
-
-      ${data.user && data.user.email_verified === false ? `
-      <div class="hint" style="border-color: var(--warn, #f59e0b); background: rgba(245,158,11,0.08);">
-        <span style="font-size:18px;">🔒</span>
-        <div>
-          <b>Поиск ключей доступен после подтверждения email.</b>
-          Каждый запрос стоит нам ~13 кредитов AppTweak — мы открываем эту функцию только верифицированным пользователям.
-          <a href="#" onclick="event.preventDefault(); resendVerification();" style="color:var(--acc); text-decoration:underline;">Отправить письмо повторно</a>.
-        </div>
-      </div>` : ''}
 
       <div class="card">
         <div class="card-body">
@@ -1138,7 +1128,7 @@ function renderExplorer() {
 function renderExplorerResults() {
   if (_explorer.loading) {
     return `<div class="card"><div class="card-body"><div class="empty" style="padding:32px;">
-      <div class="empty-text" style="color:var(--ink-3); font-family:'JetBrains Mono', monospace;">Запрашиваем AppTweak…</div>
+      <div class="empty-text" style="color:var(--ink-3); font-family:'JetBrains Mono', monospace;">Ищем в App Store…</div>
     </div></div></div>`;
   }
   if (_explorer.error) {
@@ -1159,25 +1149,25 @@ function renderExplorerResults() {
     </div>
 
     <div class="stat-grid">
-      <div class="stat-c" title="Сколько раз в день этот запрос ищут (шкала 0–100)">
+      <div class="stat-c">
+        <div class="stat-c-lbl">Приложений в&nbsp;выдаче</div>
+        <div class="stat-c-val accent">${formatNum(totalApps || 0)}</div>
+        <div class="stat-c-sub">сейчас в App Store</div>
+      </div>
+      <div class="stat-c" style="opacity:.55;">
         <div class="stat-c-lbl">Объём поиска</div>
-        <div class="stat-c-val ${m.volume != null && m.volume >= 50 ? 'accent' : ''}">${m.volume != null ? m.volume : '—'}</div>
-        <div class="stat-c-sub">${m.volume != null ? volumeLabel(m.volume) : 'нет данных'}</div>
+        <div class="stat-c-val">—</div>
+        <div class="stat-c-sub">в&nbsp;разработке</div>
       </div>
-      <div class="stat-c" title="Шкала 0–100. Выше — труднее пробиться в топ.">
+      <div class="stat-c" style="opacity:.55;">
         <div class="stat-c-lbl">Сложность</div>
-        <div class="stat-c-val ${m.difficulty != null && m.difficulty >= 70 ? '' : 'green'}" style="${m.difficulty != null && m.difficulty >= 70 ? 'color:var(--cinnabar);' : ''}">${m.difficulty != null ? m.difficulty : '—'}</div>
-        <div class="stat-c-sub">${m.difficulty != null ? difficultyLabel(m.difficulty) : 'нет данных'}</div>
+        <div class="stat-c-val">—</div>
+        <div class="stat-c-sub">в&nbsp;разработке</div>
       </div>
-      <div class="stat-c">
-        <div class="stat-c-lbl">Максимальный охват</div>
-        <div class="stat-c-val">${m.max_reach != null ? formatNum(m.max_reach) : '—'}</div>
-        <div class="stat-c-sub">пользователей увидят</div>
-      </div>
-      <div class="stat-c">
-        <div class="stat-c-lbl">Приложений по&nbsp;запросу</div>
-        <div class="stat-c-val">${formatNum(totalApps || m.results || 0)}</div>
-        <div class="stat-c-sub">всего ранжируется</div>
+      <div class="stat-c" style="opacity:.55;">
+        <div class="stat-c-lbl">Охват</div>
+        <div class="stat-c-val">—</div>
+        <div class="stat-c-sub">в&nbsp;разработке</div>
       </div>
     </div>
 
@@ -1262,13 +1252,7 @@ async function doExplorerSearch() {
     _explorer.recent = [keyword, ..._explorer.recent.filter(k => k !== keyword)].slice(0, 8);
     try { localStorage.setItem('maya_recent_kw', JSON.stringify(_explorer.recent)); } catch {}
   } catch (e) {
-    if (e.message === 'apptweak_not_configured') {
-      _explorer.error = 'AppTweak не настроен на сервере';
-    } else if (e.message === 'email_verification_required') {
-      _explorer.error = '🔒 Подтверди email, чтобы пользоваться поиском ключей';
-    } else {
-      _explorer.error = authErrorMessage(e);
-    }
+    _explorer.error = authErrorMessage(e);
   } finally {
     _explorer.loading = false;
     document.getElementById('explorerResults').innerHTML = renderExplorerResults();
@@ -1396,7 +1380,7 @@ function renderAppDetail(appId, tab = 'observations') {
           </div>
         </div>
         <div class="action-group" style="margin-left:auto">
-          <button class="btn btn-ghost btn-sm" onclick="syncAppNow('${app.id}')" title="Обновить позиции из AppTweak">↻ Обновить</button>
+          <button class="btn btn-ghost btn-sm" onclick="syncAppNow('${app.id}')" title="Обновить позиции из App Store">↻ Обновить</button>
           ${app.status === 'paused'
             ? `<button class="btn btn-ghost btn-sm" onclick="toggleAppStatus('${app.id}')">▶ Запустить</button>`
             : `<button class="btn btn-ghost btn-sm" onclick="toggleAppStatus('${app.id}')">⏸ Пауза</button>`}
@@ -1749,7 +1733,7 @@ function renderTrendPill(trend) {
 async function syncAppNow(appId) {
   const app = data.apps.find(a => a.id === appId);
   if (!app) return;
-  toast('Обновляем позиции из AppTweak…');
+  toast('Обновляем позиции из App Store…');
   try {
     const r = await API.syncApp(app.apiId);
     // refresh keyword cache
@@ -2074,7 +2058,7 @@ async function submitAddApp() {
   if (!url) { toast('Вставьте ссылку или App Store ID', 'error'); return; }
 
   const btn = document.getElementById('addAppSubmit');
-  if (btn) { btn.disabled = true; btn.textContent = 'Загружаем из AppTweak…'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Загружаем из App Store…'; }
   try {
     const res = await API.createApp({ url, country, keywords });
     const idx = data.apps.length;
@@ -2092,7 +2076,7 @@ async function submitAddApp() {
     goPage('app', mapped.id);
   } catch (e) {
     const map = {
-      app_not_found_in_apptweak: 'Приложение не найдено. Проверь ссылку и страну.',
+      app_not_found: 'Приложение не найдено. Проверь ссылку и страну.',
       invalid_app_id: 'Не получилось распознать App Store ID в ссылке.',
     };
     toast(map[e.message] || ('Ошибка: ' + e.message), 'error');

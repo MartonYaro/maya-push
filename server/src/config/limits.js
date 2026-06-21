@@ -1,5 +1,5 @@
 /**
- * Per-user limits to protect AppTweak credits + prevent abuse.
+ * Per-user limits to protect store-parsing throughput + prevent abuse.
  * Override via env vars when needed (e.g. premium customers).
  */
 export const LIMITS = {

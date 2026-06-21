@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS keyword_positions (
   keyword_id   INTEGER NOT NULL REFERENCES keywords(id) ON DELETE CASCADE,
   position     INTEGER,
   checked_at   INTEGER NOT NULL,
-  source       TEXT NOT NULL DEFAULT 'apptweak'
+  source       TEXT NOT NULL DEFAULT 'store'
 );
 CREATE INDEX IF NOT EXISTS idx_positions_keyword_time ON keyword_positions(keyword_id, checked_at);
 

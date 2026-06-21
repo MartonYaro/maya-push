@@ -17,7 +17,7 @@ maya/
       routes/keywords.js
       routes/transactions.js
       routes/dashboard.js
-      services/apptweak.js       # AppTweak клиент
+      services/appstore.js       # App Store клиент (бесплатный iTunes API)
       services/positionWorker.js # cron-воркер позиций
     .env                   # настройки (см. .env.example)
     data/maya.db           # SQLite (создаётся автоматически)
@@ -33,7 +33,7 @@ maya/
 ```bash
 cd maya/server
 cp .env.example .env
-# вставьте APPTWEAK_API_KEY и поменяйте JWT_SECRET
+# поменяйте JWT_SECRET (ключи для данных не нужны — позиции из App Store)
 npm install
 npm start
 ```
@@ -47,18 +47,16 @@ npm start
 | `PORT` | порт (3000) |
 | `JWT_SECRET` | секрет JWT — **обязательно поменять на проде** |
 | `DB_PATH` | путь к SQLite (`./data/maya.db`) |
-| `APPTWEAK_API_KEY` | ключ AppTweak. Если пустой — позиции симулируются |
-| `APPTWEAK_BASE_URL` | базовый URL (`https://api.apptweak.com`) |
 | `POSITION_CRON` | cron-выражение тика позиций (`0 */6 * * *`) |
 | `ALLOW_ORIGIN` | CORS origin (по умолчанию `*`) |
 
 ## Поток данных
 
 1. Пользователь регистрируется → получает JWT (хранится в `localStorage` под `maya_token`).
-2. Добавляет приложение по URL `https://apps.apple.com/.../id1234567890`. Сервер парсит ID, запрашивает AppTweak метаданные (название, иконка, категория) — если ключ есть.
+2. Добавляет приложение по URL `https://apps.apple.com/.../id1234567890`. Сервер парсит ID, запрашивает метаданные из публичного iTunes Lookup API (название, иконка, категория, рейтинг).
 3. Добавляет ключевые слова (`term`, `target_pos`, `plan`).
 4. Каждые 6 часов (cron) `positionWorker`:
-   - для каждого активного keyword делает `GET /ios/searches/keyword.json` в AppTweak,
+   - для каждого активного keyword делает запрос в iTunes Search API,
    - находит позицию приложения в выдаче,
    - пишет в `keyword_positions` (time-series),
    - обновляет `keywords.current_pos`,
@@ -111,4 +109,4 @@ GET    /api/stream?token=<jwt>       # SSE: position.updated, transaction.*, key
 - Графики позиций по дням (uPlot) на странице приложения — данные уже отдаются `/api/keywords/:id/positions`.
 - Bulk-import keywords (CSV).
 - Email-нотификации при достижении target_pos.
-- AppTweak fallback на iTunes Search API для метаданных (бесплатно).
+- Объём поиска и сложность ключей (в разработке).
