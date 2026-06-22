@@ -1242,7 +1242,7 @@ function renderExplorer() {
       <div class="card">
         <div class="card-body">
           <form onsubmit="event.preventDefault(); doExplorerSearch();">
-            <div style="display:grid; grid-template-columns: 1fr 220px auto; gap:10px; align-items:end;">
+            <div class="explorer-form-grid" style="display:grid; grid-template-columns: 1fr 220px auto; gap:10px; align-items:end;">
               <div class="form-row" style="margin:0;">
                 <label class="form-label">Поисковый запрос</label>
                 <input type="text" class="form-input" id="explorerInput" placeholder="messenger, fitness, weather..."

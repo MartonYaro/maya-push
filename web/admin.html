@@ -90,6 +90,21 @@
   .ud-row input { flex: 1; min-width: 120px; background: var(--bg-3); border: 1px solid var(--line-2); color: var(--ink); padding: 8px 10px; font-family: inherit; font-size: 13px; }
   .ud-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; border-top: 1px solid var(--line); padding-top: 16px; }
   .ud-li { padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+
+  @media (max-width: 720px) {
+    body { padding: 14px; }
+    .tabs { overflow-x: auto; white-space: nowrap; }
+    table { font-size: 12px; }
+    th, td { padding: 8px 8px; }
+    .filters { gap: 6px; }
+    .stat-row { grid-template-columns: repeat(2, 1fr); }
+    .ud-box { padding: 16px; }
+    .ud-grid { grid-template-columns: repeat(2, 1fr); }
+    .ud-cols { grid-template-columns: 1fr; gap: 16px; }
+    .ud-row { flex-direction: column; }
+    .ud-row input, .ud-row .btn { width: 100%; }
+    .ud-modal { padding: 12px; }
+  }
 </style>
 </head>
 <body>

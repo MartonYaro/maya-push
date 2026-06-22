@@ -1697,6 +1697,28 @@
     .modal-head, .modal-foot { padding: 16px 22px; }
     .modal-foot { flex-direction: column-reverse; }
     .modal-foot .btn { width: 100%; }
+
+    /* Install scheduler — fewer columns so day cells stay tappable */
+    .sched-grid { grid-template-columns: repeat(4, 1fr); }
+    .sched-summary { grid-template-columns: 1fr; gap: 8px; text-align: left; }
+    .sched-summary .ss-c { display: flex; justify-content: space-between; align-items: baseline; }
+    .sched-head { flex-direction: column; gap: 10px; }
+    .sched-day .sd-input { font-size: 16px; }  /* ≥16px stops iOS zoom-on-focus */
+
+    /* Explorer search form stacks */
+    .explorer-form-grid { grid-template-columns: 1fr !important; }
+
+    /* Pricing tiers + matrix wrap */
+    .price-grid { grid-template-columns: 1fr !important; }
+    .tier-card { border-right: none !important; border-bottom: 1px solid var(--line); }
+
+    /* Inputs: 16px prevents iOS auto-zoom */
+    .form-input, .form-select, .form-textarea { font-size: 16px; }
+    .page { padding: 20px 14px; }
+  }
+
+  @media (max-width: 380px) {
+    .sched-grid { grid-template-columns: repeat(3, 1fr); }
   }
 </style>
 </head>
