@@ -21,27 +21,75 @@ const colorPalette = [
   ['#84cc16', '#65a30d'],
 ];
 
-// country code → emoji + label
+// country code → emoji + label (full App Store storefront list)
 const COUNTRY_INFO = {
   us: { flag: '🇺🇸', label: 'США' },
+  gb: { flag: '🇬🇧', label: 'Великобритания' },
   ru: { flag: '🇷🇺', label: 'Россия' },
   de: { flag: '🇩🇪', label: 'Германия' },
   fr: { flag: '🇫🇷', label: 'Франция' },
-  gb: { flag: '🇬🇧', label: 'Великобритания' },
   es: { flag: '🇪🇸', label: 'Испания' },
   it: { flag: '🇮🇹', label: 'Италия' },
+  nl: { flag: '🇳🇱', label: 'Нидерланды' },
+  pl: { flag: '🇵🇱', label: 'Польша' },
+  se: { flag: '🇸🇪', label: 'Швеция' },
+  no: { flag: '🇳🇴', label: 'Норвегия' },
+  fi: { flag: '🇫🇮', label: 'Финляндия' },
+  dk: { flag: '🇩🇰', label: 'Дания' },
+  ie: { flag: '🇮🇪', label: 'Ирландия' },
+  pt: { flag: '🇵🇹', label: 'Португалия' },
+  at: { flag: '🇦🇹', label: 'Австрия' },
+  ch: { flag: '🇨🇭', label: 'Швейцария' },
+  be: { flag: '🇧🇪', label: 'Бельгия' },
+  cz: { flag: '🇨🇿', label: 'Чехия' },
+  ro: { flag: '🇷🇴', label: 'Румыния' },
+  gr: { flag: '🇬🇷', label: 'Греция' },
+  ua: { flag: '🇺🇦', label: 'Украина' },
+  kz: { flag: '🇰🇿', label: 'Казахстан' },
+  tr: { flag: '🇹🇷', label: 'Турция' },
+  ca: { flag: '🇨🇦', label: 'Канада' },
+  mx: { flag: '🇲🇽', label: 'Мексика' },
   br: { flag: '🇧🇷', label: 'Бразилия' },
+  ar: { flag: '🇦🇷', label: 'Аргентина' },
+  cl: { flag: '🇨🇱', label: 'Чили' },
+  co: { flag: '🇨🇴', label: 'Колумбия' },
+  au: { flag: '🇦🇺', label: 'Австралия' },
+  nz: { flag: '🇳🇿', label: 'Новая Зеландия' },
   jp: { flag: '🇯🇵', label: 'Япония' },
   kr: { flag: '🇰🇷', label: 'Корея' },
   cn: { flag: '🇨🇳', label: 'Китай' },
+  hk: { flag: '🇭🇰', label: 'Гонконг' },
+  tw: { flag: '🇹🇼', label: 'Тайвань' },
+  sg: { flag: '🇸🇬', label: 'Сингапур' },
   in: { flag: '🇮🇳', label: 'Индия' },
-  tr: { flag: '🇹🇷', label: 'Турция' },
-  ua: { flag: '🇺🇦', label: 'Украина' },
+  id: { flag: '🇮🇩', label: 'Индонезия' },
+  th: { flag: '🇹🇭', label: 'Таиланд' },
+  vn: { flag: '🇻🇳', label: 'Вьетнам' },
+  ph: { flag: '🇵🇭', label: 'Филиппины' },
+  my: { flag: '🇲🇾', label: 'Малайзия' },
+  ae: { flag: '🇦🇪', label: 'ОАЭ' },
+  sa: { flag: '🇸🇦', label: 'Саудовская Аравия' },
+  il: { flag: '🇮🇱', label: 'Израиль' },
+  eg: { flag: '🇪🇬', label: 'Египет' },
+  za: { flag: '🇿🇦', label: 'ЮАР' },
+  ng: { flag: '🇳🇬', label: 'Нигерия' },
 };
+// Flag as an <img> (renders on Windows, unlike emoji flags which Windows lacks).
+// flagcdn only serves a fixed set of sizes; w40 is valid and crisp on retina.
+function flagImg(code) {
+  const c = (code || 'us').toLowerCase();
+  return `<img src="https://flagcdn.com/w40/${c}.png" alt="${c.toUpperCase()}" style="width:20px; height:14px; border-radius:2px; vertical-align:middle; object-fit:cover;">`;
+}
 function geoLabel(code) {
   const c = (code || 'us').toLowerCase();
   const i = COUNTRY_INFO[c];
   return i ? `${i.flag} ${i.label}` : c.toUpperCase();
+}
+// HTML variant with a real <img> flag — use where the value is rendered as HTML.
+function geoLabelHtml(code) {
+  const c = (code || 'us').toLowerCase();
+  const i = COUNTRY_INFO[c];
+  return `${flagImg(c)} ${i ? escapeHtml(i.label) : c.toUpperCase()}`;
 }
 
 let data = {
@@ -704,7 +752,7 @@ function renderDashboard() {
                   <div class="app-cell-meta">${escapeHtml(a.category)}</div>
                 </div>
               </div></td>
-              <td class="mono">${escapeHtml(a.geo)}</td>
+              <td class="mono">${geoLabelHtml(a.country)}</td>
               <td class="num">${a.keywords.length}</td>
               <td class="num green">${top10}</td>
               <td class="num">${formatNum(inst)}</td>
@@ -769,7 +817,7 @@ function renderApps() {
                     <div class="app-cell-meta">${escapeHtml(a.category)}</div>
                   </div>
                 </div></td>
-                <td class="mono">${escapeHtml(a.geo)}</td>
+                <td class="mono">${geoLabelHtml(a.country)}</td>
                 <td class="num">${a.keywords.length}</td>
                 <td class="num green">${formatNum(inst)}</td>
                 <td class="mono">${formatDate(a.createdAt)}</td>
@@ -839,7 +887,7 @@ function renderObservations() {
                     </div>
                   </div></td>
                   <td><b style="color:var(--ink)">${escapeHtml(kw.name)}</b></td>
-                  <td class="mono">${escapeHtml(app.geo)}</td>
+                  <td class="mono">${geoLabelHtml(app.country)}</td>
                   <td class="num ${posTextClass(kw.currentPos)}">${kw.currentPos != null ? '#' + kw.currentPos : '—'}</td>
                   <td class="num green">#${kw.targetPos || '—'}</td>
                   <td>${posStatusPill(kw.currentPos, kw.targetPos)}</td>
@@ -932,7 +980,7 @@ function renderCampaigns() {
                       : `<div class="app-icon-sm" style="--ico-a: ${app.colorA}; --ico-b: ${app.colorB};">${escapeHtml(app.name.slice(0,1).toUpperCase())}</div>`}
                     <div class="app-cell-info">
                       <div class="app-cell-name">${escapeHtml(app.name)}</div>
-                      <div class="app-cell-meta">${escapeHtml(app.geo)}</div>
+                      <div class="app-cell-meta">${geoLabelHtml(app.country)}</div>
                     </div>
                   </div></td>
                   <td><b style="color:var(--ink)">${escapeHtml(kw.name)}</b></td>
@@ -1227,11 +1275,10 @@ function renderExplorerResults() {
 
   const { keyword, country, metrics, totalApps, topApps } = _explorer.data;
   const m = metrics || {};
-  const flag = (COUNTRY_INFO[country] && COUNTRY_INFO[country].flag) || '';
 
   return `
     <div class="page-subtitle" style="margin: 6px 0 12px;">
-      / Insights for <span style="color:var(--ink); font-weight:700;">«${escapeHtml(keyword)}»</span> · ${flag} ${escapeHtml((COUNTRY_INFO[country]||{}).label||country.toUpperCase())}
+      / Insights for <span style="color:var(--ink); font-weight:700;">«${escapeHtml(keyword)}»</span> · ${flagImg(country)} ${escapeHtml((COUNTRY_INFO[country]||{}).label||country.toUpperCase())}
     </div>
 
     <div class="stat-grid">
@@ -1461,7 +1508,7 @@ function renderAppDetail(appId, tab = 'observations') {
             ${ratingHtml}
             ${app.developer ? `<span>· <b>${escapeHtml(app.developer)}</b></span>` : ''}
             <span>· ${escapeHtml(app.category)}</span>
-            <span>· ${escapeHtml(app.geo)}</span>
+            <span>· ${geoLabelHtml(app.country)}</span>
             <span>· ${statusPill(app.status)}</span>
           </div>
         </div>
@@ -1889,7 +1936,7 @@ function paintScheduler() {
     <div class="sched-head">
       <div>
         <div class="sh-title">${escapeHtml(kw.name)}</div>
-        <div class="sh-meta">${escapeHtml(app.name)} · ${escapeHtml(app.geo)} · тариф: ${escapeHtml(tier.name)} · $${price.toFixed(2)} / установка</div>
+        <div class="sh-meta">${escapeHtml(app.name)} · ${geoLabelHtml(app.country)} · тариф: ${escapeHtml(tier.name)} · $${price.toFixed(2)} / установка</div>
       </div>
       <div class="sh-pos">
         <div class="lab">Текущая → Цель</div>
@@ -1932,15 +1979,15 @@ function paintScheduler() {
     <div class="sched-summary">
       <div class="ss-c">
         <div class="ss-lbl">Всего установок</div>
-        <div class="ss-val">${formatNum(totalNew)}</div>
+        <div class="ss-val" id="ssTotal">${formatNum(totalNew)}</div>
       </div>
       <div class="ss-c">
         <div class="ss-lbl">Стоимость</div>
-        <div class="ss-val ${totalCost > data.balance ? 'red' : 'green'}">$${formatNum(totalCost)}</div>
+        <div class="ss-val ${totalCost > data.balance ? 'red' : 'green'}" id="ssCost">$${formatNum(totalCost)}</div>
       </div>
       <div class="ss-c">
         <div class="ss-lbl">Баланс после</div>
-        <div class="ss-val ${(data.balance - totalCost) < 0 ? 'red' : ''}">$${formatNum(Math.max(0, data.balance - totalCost))}</div>
+        <div class="ss-val ${(data.balance - totalCost) < 0 ? 'red' : ''}" id="ssBalance">$${formatNum(Math.max(0, data.balance - totalCost))}</div>
       </div>
     </div>
   `;
@@ -1962,12 +2009,36 @@ function schedDayChange(date, value) {
   const v = parseInt(value, 10);
   if (!v || v <= 0) delete _scheduler.perDay[date];
   else _scheduler.perDay[date] = v;
-  paintScheduler();
-  // restore focus
-  setTimeout(() => {
-    const el = document.querySelector(`.sd-input[data-date="${date}"]`);
-    if (el) { el.focus(); const len = el.value.length; el.setSelectionRange(len, len); }
-  }, 10);
+  // Update only the totals — do NOT re-render the grid (that resets the cursor
+  // and causes reversed typing on number inputs).
+  const cell = document.querySelector(`.sd-input[data-date="${date}"]`);
+  if (cell) cell.closest('.sched-day')?.classList.toggle('has-value', !!v);
+  updateSchedSummary();
+}
+
+function updateSchedSummary() {
+  const { kw } = _scheduler;
+  const tier = PRICING_TIERS.find(t => t.id === (kw.planTier || 'standard')) || PRICING_TIERS[0];
+  const price = tier.pricePerInstall || 0.30;
+  const totalNew = Object.values(_scheduler.perDay).reduce((s, x) => s + (parseInt(x, 10) || 0), 0);
+  const totalCost = +(totalNew * price).toFixed(2);
+
+  const elTotal = document.getElementById('ssTotal');
+  const elCost = document.getElementById('ssCost');
+  const elBal = document.getElementById('ssBalance');
+  if (elTotal) elTotal.textContent = formatNum(totalNew);
+  if (elCost) { elCost.textContent = `$${formatNum(totalCost)}`; elCost.className = 'ss-val ' + (totalCost > data.balance ? 'red' : 'green'); }
+  if (elBal) { elBal.textContent = `$${formatNum(Math.max(0, data.balance - totalCost))}`; elBal.className = 'ss-val ' + ((data.balance - totalCost) < 0 ? 'red' : ''); }
+
+  const submit = document.getElementById('installsSubmit');
+  if (submit) {
+    submit.disabled = totalNew === 0 || totalCost > data.balance;
+    submit.textContent = totalCost > data.balance ? 'Недостаточно баланса'
+      : totalNew === 0 ? 'Укажи количество'
+      : `Запланировать на $${formatNum(totalCost)}`;
+  }
+  const costEl = document.getElementById('installsCost');
+  if (costEl) costEl.textContent = `$${price.toFixed(2)} × ${formatNum(totalNew)} = $${formatNum(totalCost)}`;
 }
 
 function schedFill(count) {
@@ -2131,7 +2202,12 @@ function editAsoCell(td) {
 function openAddApp() {
   document.getElementById('newAppUrl').value = '';
   document.getElementById('newAppKeywords').value = '';
-  document.getElementById('newAppCountry').value = 'us';
+  // Populate the full country list from COUNTRY_INFO
+  const sel = document.getElementById('newAppCountry');
+  sel.innerHTML = Object.entries(COUNTRY_INFO)
+    .map(([code, info]) => `<option value="${code}">${info.flag} ${info.label}</option>`)
+    .join('');
+  sel.value = 'us';
   openModal('addAppModal');
   setTimeout(() => document.getElementById('newAppUrl')?.focus(), 50);
 }
