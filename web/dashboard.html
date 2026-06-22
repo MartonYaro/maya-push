@@ -1434,11 +1434,10 @@
   .matrix-legend .lg-sw {
     display: inline-block; width: 14px; height: 14px; border: 1px solid var(--line-2);
   }
-  .matrix-legend .lg-sw.top10  { background: rgba(58,255,159,0.40); border-color: var(--jade); }
-  .matrix-legend .lg-sw.top30  { background: rgba(58,255,159,0.18); }
-  .matrix-legend .lg-sw.top100 { background: rgba(232,160,74,0.18); }
-  .matrix-legend .lg-sw.deep   { background: rgba(212,74,58,0.18); }
-  .matrix-legend .lg-sw.none   { background: transparent; }
+  .matrix-legend .lg-sw.rose    { background: rgba(58,255,159,0.22); border-color: var(--jade); }
+  .matrix-legend .lg-sw.dropped { background: rgba(212,74,58,0.22); border-color: #ff7a68; }
+  .matrix-legend .lg-sw.flat    { background: rgba(240,234,216,0.08); }
+  .matrix-legend .lg-sw.nodata  { background: transparent; }
 
   .matrix-wrap {
     overflow-x: auto;
@@ -1490,14 +1489,16 @@
   .matrix-tbl tbody td.col-meta-cell.target { color: var(--jade); font-weight: 600; }
 
   /* Position cells: color-coded by rank tier */
-  .pos-cell { font-weight: 600; min-width: 36px; }
-  .pos-cell.top10  { background: rgba(58,255,159,0.32);  color: #062414; }
-  .pos-cell.top10  { color: var(--ink); background: rgba(58,255,159,0.32); }
-  .pos-cell.top30  { background: rgba(58,255,159,0.12);  color: var(--ink); }
-  .pos-cell.top100 { background: rgba(232,160,74,0.14);  color: var(--ink-2); }
-  .pos-cell.deep   { background: rgba(212,74,58,0.10);   color: var(--ink-3); }
-  .pos-cell.none   { color: var(--ink-4); font-weight: 400; }
-  .pos-cell.today  { outline: 1px solid var(--jade); outline-offset: -2px; }
+  .pos-cell { font-weight: 600; min-width: 40px; }
+  /* Colour by MOVEMENT: green = position rose, red = dropped */
+  .pos-cell.rose    { background: rgba(58,255,159,0.22);  color: var(--jade); }
+  .pos-cell.dropped { background: rgba(212,74,58,0.22);   color: #ff7a68; }
+  .pos-cell.flat    { background: rgba(240,234,216,0.05); color: var(--ink-2); }
+  .pos-cell.start   { background: rgba(240,234,216,0.08); color: var(--ink); }
+  .pos-cell.nodata  { color: var(--ink-4); font-weight: 400; opacity: 0.35; }
+  .pos-cell.today   { outline: 1px solid var(--jade); outline-offset: -2px; }
+  /* legacy band classes kept harmless */
+  .pos-cell.top10, .pos-cell.top30, .pos-cell.top100, .pos-cell.deep, .pos-cell.none {}
   .pos-cell .delta {
     display: block; font-size: 9px; font-weight: 700; margin-top: 1px;
     letter-spacing: 0.04em; opacity: 0.85;

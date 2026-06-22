@@ -1653,12 +1653,12 @@ function renderAppObservations(app) {
         <button class="btn btn-primary btn-sm" onclick="openAddKw('${app.id}')">+ Ключ</button>
       </div>
       <div class="matrix-legend">
-        <span>Цвет ячейки:</span>
-        <span class="lg-chip"><span class="lg-sw top10"></span>топ-10</span>
-        <span class="lg-chip"><span class="lg-sw top30"></span>11–30</span>
-        <span class="lg-chip"><span class="lg-sw top100"></span>31–100</span>
-        <span class="lg-chip"><span class="lg-sw deep"></span>101+</span>
-        <span class="lg-chip"><span class="lg-sw none"></span>нет данных</span>
+        <span>Динамика:</span>
+        <span class="lg-chip"><span class="lg-sw rose"></span>позиция выросла</span>
+        <span class="lg-chip"><span class="lg-sw dropped"></span>упала</span>
+        <span class="lg-chip"><span class="lg-sw flat"></span>без изменений</span>
+        <span class="lg-chip"><span class="lg-sw nodata"></span>нет данных</span>
+        <span style="margin-left:auto; color:var(--ink-3); font-size:11px;">число в ячейке = позиция в выдаче</span>
       </div>
       <div id="matrixBody">
         ${app.keywords.length === 0
@@ -1848,18 +1848,22 @@ function paintMatrix() {
     </tr>`;
 
   const rows = keywords.map(k => {
-    const cells = dates.map((d, i) => {
+    // Colour each day by MOVEMENT vs the last known position (green = rose, red = dropped).
+    let lastVal = null;
+    const cells = dates.map((d) => {
       const v = k.byDate[d];
-      const cls = posClass(v);
-      const prev = i > 0 ? k.byDate[dates[i-1]] : null;
-      const delta = (v != null && prev != null) ? (prev - v) : null; // positive = improved
-      const arrow = delta == null || delta === 0
-        ? ''
-        : `<span class="delta ${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '↑' : '↓'}${Math.abs(delta)}</span>`;
       const today = d === todayStr ? ' today' : '';
-      return `<td class="pos-cell ${cls}${today}" title="${d}${v != null ? ' · #' + v : ' · нет данных'}">${
-        v != null ? '#' + v : '—'
-      }${arrow}</td>`;
+      if (v == null) {
+        return `<td class="pos-cell nodata${today}" title="${d} · нет данных">·</td>`;
+      }
+      let move = 'start', arrow = '';
+      if (lastVal != null) {
+        const delta = lastVal - v;               // positive = rank improved (rose)
+        move = delta > 0 ? 'rose' : delta < 0 ? 'dropped' : 'flat';
+        if (delta !== 0) arrow = `<span class="delta ${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '▲' : '▼'}${Math.abs(delta)}</span>`;
+      }
+      lastVal = v;
+      return `<td class="pos-cell ${move}${today}" title="${d} · #${v}">#${v}${arrow}</td>`;
     }).join('');
 
     const trendPill = renderTrendPill(k.trend);
@@ -1868,7 +1872,7 @@ function paintMatrix() {
         ${escapeHtml(k.term)}
         <span class="kw-sub">${k.status === 'active' ? 'трекается' : escapeHtml(k.status)}</span>
       </td>
-      <td class="col-meta-cell">${k.current_pos != null ? '#' + k.current_pos : '—'}</td>
+      <td class="col-meta-cell"><span style="color:${posColor(k.current_pos)};font-weight:700;">${k.current_pos != null ? '#' + k.current_pos : '—'}</span></td>
       <td class="col-meta-cell target">#${k.target_pos}</td>
       <td class="col-meta-cell">${k.best != null ? '#' + k.best : '—'}</td>
       <td class="col-trend">${trendPill}</td>
@@ -1891,6 +1895,15 @@ function posClass(pos) {
   if (pos <= 30) return 'top30';
   if (pos <= 100) return 'top100';
   return 'deep';
+}
+
+// Colour the current position by band (quick read: in top or not).
+function posColor(pos) {
+  if (pos == null) return 'var(--ink-3)';
+  if (pos <= 10) return 'var(--jade)';
+  if (pos <= 30) return '#9be8c0';
+  if (pos <= 100) return 'var(--ochre, #e8a04a)';
+  return 'var(--ink-2)';
 }
 
 function renderTrendPill(trend) {
