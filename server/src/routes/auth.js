@@ -252,7 +252,7 @@ router.post('/telegram',
 
 router.get('/me', requireAuth, (req, res) => {
   const row = db.prepare(
-    'SELECT id, email, name, role, email_verified, telegram, created_at FROM users WHERE id = ?'
+    'SELECT id, email, name, role, email_verified, telegram, created_at, custom_install_price FROM users WHERE id = ?'
   ).get(req.user.id);
   if (!row) return res.status(404).json({ error: 'not_found' });
   // Pilot mode: report verified when email service isn't configured, so the

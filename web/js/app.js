@@ -550,6 +550,7 @@ function goPage(page, params) {
 
 async function routeFromHash() {
   if (!data.user) return;
+  closeSidebar();   // mobile: hide the slide-over menu after navigating
   const hash = (location.hash || '#dashboard').slice(1);
   const [page, ...params] = hash.split('/');
   const pageContent = document.getElementById('pageContent');
@@ -620,7 +621,8 @@ function renderDashboard() {
     .filter(t => t.type === 'topup' && t.status === 'done')
     .reduce((s, t) => s + (t.amount > 0 ? t.amount : 0), 0);
   const userTier = tierFromAmount(totalToppedUp || 0);
-  const userPrice = userTier.pricePerInstall;
+  const customPrice = (data.user && data.user.custom_install_price != null) ? data.user.custom_install_price : null;
+  const userPrice = customPrice != null ? customPrice : userTier.pricePerInstall;
   const lastTopup = data.transactions
     .filter(t => t.type === 'topup' && t.status === 'done')
     .sort((a, b) => b.createdAt - a.createdAt)[0];
@@ -691,7 +693,7 @@ function renderDashboard() {
         <div class="stat-c" title="Активный тариф зависит от суммы ваших пополнений. Чем больше депозит — тем дешевле установка.">
           <div class="stat-c-lbl">Цена за&nbsp;установку</div>
           <div class="stat-c-val"><span class="accent">${userPrice != null ? '$' + userPrice.toFixed(2) : '—'}</span></div>
-          <div class="stat-c-sub">тариф «${escapeHtml(userTier.name)}»${userPrice != null && data.balance > 0 ? ` · хватит на&nbsp;~${formatNum(Math.floor(data.balance / userPrice))} установок` : ''}</div>
+          <div class="stat-c-sub">${customPrice != null ? 'индивидуальная цена' : 'тариф «' + escapeHtml(userTier.name) + '»'}${userPrice ? ` · хватит на&nbsp;~${formatNum(Math.floor(data.balance / userPrice))} установок` : ''}</div>
         </div>
         <div class="stat-c">
           <div class="stat-c-lbl">Приложений</div>
@@ -1032,6 +1034,13 @@ function tierFromAmount(amount) {
   return pick;
 }
 
+// Effective per-install price: admin-set custom price wins, else the plan price.
+function effectivePrice(planTier) {
+  if (data.user && data.user.custom_install_price != null) return data.user.custom_install_price;
+  const tier = PRICING_TIERS.find(t => t.id === (planTier || 'standard')) || PRICING_TIERS[0];
+  return tier.pricePerInstall || 0.30;
+}
+
 function renderTopup() {
   const presets = PRICING_TIERS.map(t => t.minDeposit);
   const initialAmount = presets[1]; // start at "Объём"
@@ -1237,7 +1246,7 @@ function renderExplorer() {
               <div class="form-row" style="margin:0;">
                 <label class="form-label">Поисковый запрос</label>
                 <input type="text" class="form-input" id="explorerInput" placeholder="messenger, fitness, weather..."
-                  value="${escapeAttr(_explorer.keyword)}" autofocus
+                  value="" autofocus
                   style="font-family:'JetBrains Mono', monospace; font-size:14px;">
               </div>
               <div class="form-row" style="margin:0;">
@@ -1336,7 +1345,11 @@ function renderExplorerResults() {
                 <td class="num">${a.rating != null
                   ? `<span style="color:var(--gold)">★ ${a.rating.toFixed(1)}</span>`
                   : '—'}</td>
-                <td><a href="https://apps.apple.com/app/id${a.store_id}" target="_blank" class="btn btn-ghost btn-sm">App Store ↗</a></td>
+                <td style="white-space:nowrap;">
+                  <button class="btn btn-primary btn-sm" title="Добавить в мониторинг"
+                    onclick="addAppFromExplorer('${a.store_id}', this)">+ Мониторить</button>
+                  <a href="https://apps.apple.com/app/id${a.store_id}" target="_blank" class="btn btn-ghost btn-sm" style="margin-left:6px;">↗</a>
+                </td>
               </tr>`).join('')}</tbody>
           </table></div>
         `}
@@ -1427,6 +1440,31 @@ function addExplorerKeywordToApp() {
       const ta = document.getElementById('newKw');
       if (ta) { ta.value = kw; ta.focus(); }
     }, 80);
+  }
+}
+
+// Add an app straight from the explorer results into monitoring.
+async function addAppFromExplorer(storeId, btn) {
+  const country = _explorer.country || 'us';
+  const seedKw = _explorer.keyword ? [_explorer.keyword] : [];
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    const res = await API.createApp({ store_id: String(storeId), country, keywords: seedKw });
+    const idx = data.apps.length;
+    const mapped = mapApp(res.app, idx);
+    mapped.keywords = (res.keywords || []).map(mapKeyword);
+    // Avoid duplicates if already tracked
+    if (!data.apps.some(a => a.storeId === mapped.storeId && a.country === mapped.country)) {
+      data.apps.unshift(mapped);
+    }
+    refreshUserUI();
+    if (seedKw.length) API.syncHistory(mapped.apiId, 30).catch(() => {});
+    toast(`✓ ${mapped.name} добавлено в мониторинг`);
+    if (btn) { btn.textContent = '✓ В трекинге'; }
+  } catch (e) {
+    const map = { app_not_found: 'Приложение не найдено в этой стране', invalid_app_id: 'Не удалось распознать ID' };
+    toast(map[e.message] || ('Ошибка: ' + e.message), 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '+ Мониторить'; }
   }
 }
 
@@ -1916,7 +1954,7 @@ async function openInstallsForKw(kwId) {
 function paintScheduler() {
   const { kw, app, days, perDay, existing } = _scheduler;
   const tier = PRICING_TIERS.find(t => t.id === (kw.planTier || 'standard')) || PRICING_TIERS[0];
-  const price = tier.pricePerInstall || 0.30;
+  const price = effectivePrice(kw.planTier);
 
   document.getElementById('installsTitle').textContent = `Кампания: ${kw.name}`;
 
@@ -2018,8 +2056,7 @@ function schedDayChange(date, value) {
 
 function updateSchedSummary() {
   const { kw } = _scheduler;
-  const tier = PRICING_TIERS.find(t => t.id === (kw.planTier || 'standard')) || PRICING_TIERS[0];
-  const price = tier.pricePerInstall || 0.30;
+  const price = effectivePrice(kw.planTier);
   const totalNew = Object.values(_scheduler.perDay).reduce((s, x) => s + (parseInt(x, 10) || 0), 0);
   const totalCost = +(totalNew * price).toFixed(2);
 
