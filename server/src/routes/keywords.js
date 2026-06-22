@@ -179,7 +179,11 @@ router.post('/:id/installs', (req, res) => {
     });
   }
 
-  const price = PRICE_PER_INSTALL[kw.plan] || PRICE_PER_INSTALL.standard;
+  // Admin can set a custom per-install price for a client; it overrides the plan price.
+  const u = db.prepare('SELECT custom_install_price FROM users WHERE id = ?').get(req.user.id);
+  const price = (u && u.custom_install_price != null)
+    ? u.custom_install_price
+    : (PRICE_PER_INSTALL[kw.plan] || PRICE_PER_INSTALL.standard);
   const cost = +(c * price).toFixed(2);
 
   const balance = getBalance(req.user.id);

@@ -115,6 +115,10 @@ addColumnIfMissing('users', 'provider',    "TEXT NOT NULL DEFAULT 'email'");
 db.exec(`CREATE INDEX IF NOT EXISTS idx_users_google   ON users(google_id);`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_users_telegram ON users(telegram_id);`);
 
+// Admin controls (v0.5) — manual per-user price + blocking
+addColumnIfMissing('users', 'blocked', 'INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('users', 'custom_install_price', 'REAL');   // overrides plan price when set
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS email_verifications (
   token       TEXT PRIMARY KEY,

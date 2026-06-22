@@ -16,9 +16,15 @@ function requireAdmin(req, res, next) {
 
 router.use(requireAuth, requireAdmin);
 
+function tierName(dep) {
+  return dep >= 50000 ? 'Enterprise' : dep >= 15000 ? 'Scale ($0.13)'
+       : dep >= 5000 ? 'Volume ($0.25)' : dep >= 1500 ? 'Standard ($0.30)' : '—';
+}
+
 router.get('/users', (_req, res) => {
   const rows = db.prepare(`
     SELECT u.id, u.email, u.name, u.role, u.provider, u.telegram, u.created_at, u.last_login_at,
+      u.blocked, u.custom_install_price,
       COALESCE((SELECT SUM(amount) FROM transactions WHERE user_id = u.id AND status = 'done'), 0) AS balance,
       COALESCE((SELECT SUM(amount) FROM transactions WHERE user_id = u.id AND status = 'done' AND type = 'topup' AND amount > 0), 0) AS total_deposited,
       (SELECT COUNT(*) FROM apps WHERE user_id = u.id) AS apps_count,
@@ -26,10 +32,59 @@ router.get('/users', (_req, res) => {
       COALESCE((SELECT SUM(i.cost) FROM installs i JOIN keywords k ON k.id = i.keyword_id JOIN apps a ON a.id = k.app_id WHERE a.user_id = u.id), 0) AS spent_on_installs
     FROM users u ORDER BY u.created_at DESC
   `).all();
-  // Derive tariff tier from total deposited (same thresholds as PRICING_TIERS)
-  const tier = (dep) => dep >= 50000 ? 'Enterprise' : dep >= 15000 ? 'Scale ($0.13)' : dep >= 5000 ? 'Volume ($0.25)' : dep >= 1500 ? 'Standard ($0.30)' : '—';
-  for (const r of rows) r.tariff = tier(r.total_deposited);
+  for (const r of rows) r.tariff = tierName(r.total_deposited);
   res.json({ users: rows });
+});
+
+/** Full detail for one client. */
+router.get('/users/:id', (req, res) => {
+  const u = db.prepare(`
+    SELECT id, email, name, role, provider, telegram, avatar_url, blocked, custom_install_price,
+           email_verified, created_at, last_login_at
+    FROM users WHERE id = ?`).get(req.params.id);
+  if (!u) return res.status(404).json({ error: 'not_found' });
+  u.balance = getBalance(u.id);
+  u.total_deposited = db.prepare(
+    `SELECT COALESCE(SUM(amount),0) AS s FROM transactions WHERE user_id=? AND status='done' AND type='topup' AND amount>0`
+  ).get(u.id).s;
+  u.tariff = tierName(u.total_deposited);
+  u.apps = db.prepare(`
+    SELECT a.id, a.name, a.country, a.status,
+      (SELECT COUNT(*) FROM keywords k WHERE k.app_id = a.id) AS keywords_count
+    FROM apps a WHERE a.user_id = ? ORDER BY a.created_at DESC`).all(u.id);
+  u.transactions = db.prepare(
+    `SELECT id, type, amount, status, description, created_at FROM transactions WHERE user_id=? ORDER BY created_at DESC LIMIT 30`
+  ).all(u.id);
+  u.activity = db.prepare(
+    `SELECT action, meta, ip, created_at FROM audit_log WHERE user_id=? ORDER BY created_at DESC LIMIT 30`
+  ).all(u.id);
+  u.orders = db.prepare(`
+    SELECT i.id, i.date, i.count, i.delivered, i.cost, i.status, k.term AS keyword, a.name AS app_name
+    FROM installs i JOIN keywords k ON k.id=i.keyword_id JOIN apps a ON a.id=k.app_id
+    WHERE a.user_id=? ORDER BY i.created_at DESC LIMIT 30`).all(u.id);
+  res.json({ user: u });
+});
+
+/** Update a client: blocked / custom_install_price / role. */
+router.patch('/users/:id', (req, res) => {
+  const u = db.prepare('SELECT id, email FROM users WHERE id = ?').get(req.params.id);
+  if (!u) return res.status(404).json({ error: 'not_found' });
+  const { blocked, custom_install_price, role } = req.body || {};
+
+  if (blocked !== undefined) {
+    db.prepare('UPDATE users SET blocked = ? WHERE id = ?').run(blocked ? 1 : 0, u.id);
+  }
+  if (custom_install_price !== undefined) {
+    const p = custom_install_price === null || custom_install_price === ''
+      ? null : Math.max(0, parseFloat(custom_install_price));
+    db.prepare('UPDATE users SET custom_install_price = ? WHERE id = ?').run(p, u.id);
+  }
+  if (role !== undefined && (role === 'admin' || role === 'user')) {
+    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, u.id);
+  }
+  audit(req, { userId: u.id, actorId: req.user.id, action: 'admin.user_update', meta: { blocked, custom_install_price, role } });
+  const row = db.prepare('SELECT id, blocked, custom_install_price, role FROM users WHERE id = ?').get(u.id);
+  res.json({ ok: true, user: row });
 });
 
 router.get('/transactions', (req, res) => {

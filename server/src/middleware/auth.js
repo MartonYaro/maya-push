@@ -7,6 +7,9 @@ export function requireAuth(req, res, next) {
   if (!token) return res.status(401).json({ error: 'no_token' });
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
+    // Reject blocked accounts (kills existing sessions too).
+    const u = db.prepare('SELECT blocked FROM users WHERE id = ?').get(payload.sub);
+    if (u && u.blocked) return res.status(403).json({ error: 'account_blocked' });
     req.user = { id: payload.sub, email: payload.email };
     next();
   } catch {

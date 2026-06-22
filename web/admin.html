@@ -72,6 +72,24 @@
   .tab.active .count { background: var(--jade); color: var(--bg); }
   .panel { display: none; }
   .panel.active { display: block; }
+
+  /* User detail modal */
+  .ud-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; }
+  .ud-box { background: var(--bg-2); border: 1px solid var(--line-2); width: 100%; max-width: 920px; padding: 24px; }
+  .ud-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; border-bottom: 1px solid var(--line); padding-bottom: 16px; margin-bottom: 16px; }
+  .ud-name { font-size: 20px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+  .ud-sub { font-size: 12px; color: var(--ink-3); margin-top: 4px; }
+  .ud-sub a { color: var(--jade); }
+  .ud-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+  .ud-card { background: var(--bg-3); border: 1px solid var(--line); padding: 12px 14px; }
+  .ud-lbl { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; }
+  .ud-val { font-size: 22px; font-weight: 700; font-family: 'JetBrains Mono', monospace; margin-top: 4px; }
+  .ud-actions { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
+  .ud-act-t { font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--ink-2); }
+  .ud-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ud-row input { flex: 1; min-width: 120px; background: var(--bg-3); border: 1px solid var(--line-2); color: var(--ink); padding: 8px 10px; font-family: inherit; font-size: 13px; }
+  .ud-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; border-top: 1px solid var(--line); padding-top: 16px; }
+  .ud-li { padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 </style>
 </head>
 <body>
@@ -164,6 +182,12 @@
       <h2>Все транзакции (200 последних)</h2>
       <div id="txTable"></div>
     </div>
+  </div>
+</div>
+
+<div id="userModal" class="ud-modal">
+  <div class="ud-box">
+    <div id="userModalBody"></div>
   </div>
 </div>
 
@@ -430,24 +454,128 @@ function renderUsers(rows) {
   $('usersCount2').textContent = rows.length;
   if (!rows.length) { $('usersTable').innerHTML = '<div class="empty">Нет пользователей</div>'; return; }
   $('usersTable').innerHTML = `<table>
-    <thead><tr><th>id</th><th>клиент</th><th>вход</th><th>тариф</th><th>депозит всего</th><th>баланс</th><th>прилож.</th><th>ключи</th><th>роль</th><th>создан</th></tr></thead>
-    <tbody>${rows.map(u => `<tr>
+    <thead><tr><th>id</th><th>клиент</th><th>тариф / цена</th><th>депозит</th><th>баланс</th><th>прил.</th><th>ключи</th><th>статус</th><th></th></tr></thead>
+    <tbody>${rows.map(u => `<tr ${u.blocked ? 'style="opacity:.55"' : ''}>
       <td class="mono">#${u.id}</td>
       <td>
-        <div>${esc(u.name)}</div>
-        <div style="color:var(--ink-3); font-size:11px">${esc(u.email)}</div>
+        <div>${esc(u.name)} ${u.role === 'admin' ? '<span class="pill done" style="font-size:9px">admin</span>' : ''}</div>
+        <div style="color:var(--ink-3); font-size:11px">${esc(u.email)} · ${esc(u.provider || 'email')}</div>
         ${u.telegram ? `<a href="https://t.me/${esc(u.telegram)}" target="_blank" style="font-size:11px">@${esc(u.telegram)}</a>` : ''}
       </td>
-      <td class="mono" style="font-size:11px; color:var(--ink-2)">${esc(u.provider || 'email')}</td>
-      <td><span class="pill ${u.total_deposited >= 5000 ? 'done' : ''}">${esc(u.tariff || '—')}</span></td>
+      <td>
+        <span class="pill ${u.total_deposited >= 5000 ? 'done' : ''}">${esc(u.tariff || '—')}</span>
+        ${u.custom_install_price != null ? `<div class="mono" style="font-size:11px;color:var(--warn);margin-top:3px">↳ ручная $${Number(u.custom_install_price).toFixed(2)}</div>` : ''}
+      </td>
       <td class="mono">${fmtMoney(u.total_deposited)}</td>
       <td class="mono pos">${fmt(u.balance)}</td>
       <td class="mono">${u.apps_count}</td>
       <td class="mono">${u.keywords_count}</td>
-      <td><span class="pill ${u.role === 'admin' ? 'done' : ''}">${esc(u.role)}</span></td>
-      <td class="mono" style="font-size:11px">${fmtTs(u.created_at)}</td>
+      <td>${u.blocked ? '<span class="pill rejected">заблокирован</span>' : '<span class="pill done">активен</span>'}</td>
+      <td><button class="btn sm" onclick="openUserDetail(${u.id})">Детали →</button></td>
     </tr>`).join('')}</tbody>
   </table>`;
+}
+
+let _userDetail = null;
+async function openUserDetail(id) {
+  try {
+    const { user } = await adminFetch('/api/admin/users/' + id);
+    _userDetail = user;
+    renderUserDetail(user);
+    $('userModal').style.display = 'flex';
+  } catch (e) { alert('Ошибка: ' + e.message); }
+}
+function closeUserDetail() { $('userModal').style.display = 'none'; _userDetail = null; }
+
+function renderUserDetail(u) {
+  const effPrice = u.custom_install_price != null ? u.custom_install_price : null;
+  $('userModalBody').innerHTML = `
+    <div class="ud-head">
+      <div>
+        <div class="ud-name">${esc(u.name)} ${u.role === 'admin' ? '<span class="pill done">admin</span>' : ''} ${u.blocked ? '<span class="pill rejected">заблокирован</span>' : ''}</div>
+        <div class="ud-sub">${esc(u.email)} · вход: ${esc(u.provider)} ${u.telegram ? '· <a target=_blank href="https://t.me/' + esc(u.telegram) + '">@' + esc(u.telegram) + '</a>' : ''}</div>
+        <div class="ud-sub">создан ${fmtTs(u.created_at)} · последний вход ${u.last_login_at ? fmtTs(u.last_login_at) : '—'}</div>
+      </div>
+      <button class="btn" onclick="closeUserDetail()">✕</button>
+    </div>
+
+    <div class="ud-grid">
+      <div class="ud-card"><div class="ud-lbl">Баланс</div><div class="ud-val pos">${fmt(u.balance)}</div></div>
+      <div class="ud-card"><div class="ud-lbl">Депозит всего</div><div class="ud-val">${fmtMoney(u.total_deposited)}</div></div>
+      <div class="ud-card"><div class="ud-lbl">Тариф</div><div class="ud-val" style="font-size:15px">${esc(u.tariff)}</div></div>
+      <div class="ud-card"><div class="ud-lbl">Цена/установка</div><div class="ud-val" style="font-size:15px">${effPrice != null ? '$' + effPrice.toFixed(2) + ' <span style="color:var(--warn);font-size:11px">ручная</span>' : 'по тарифу'}</div></div>
+    </div>
+
+    <div class="ud-actions">
+      <div class="ud-act">
+        <div class="ud-act-t">💰 Пополнить / списать баланс</div>
+        <div class="ud-row">
+          <input type="number" id="udAmount" placeholder="сумма (− для списания)" step="50">
+          <input type="text" id="udDesc" placeholder="комментарий">
+          <button class="btn primary" onclick="udCredit(${u.id})">Применить</button>
+        </div>
+      </div>
+      <div class="ud-act">
+        <div class="ud-act-t">🏷️ Ручная цена за установку (перебивает тариф)</div>
+        <div class="ud-row">
+          <input type="number" id="udPrice" placeholder="напр. 0.20" step="0.01" value="${effPrice != null ? effPrice : ''}">
+          <button class="btn primary" onclick="udSetPrice(${u.id})">Сохранить</button>
+          <button class="btn" onclick="udSetPrice(${u.id}, true)">Сбросить</button>
+        </div>
+      </div>
+      <div class="ud-act">
+        <div class="ud-act-t">🔒 Доступ</div>
+        <div class="ud-row">
+          <button class="btn ${u.blocked ? 'primary' : 'danger'}" onclick="udBlock(${u.id}, ${u.blocked ? 0 : 1})">${u.blocked ? 'Разблокировать' : 'Заблокировать'}</button>
+          <button class="btn" onclick="udRole(${u.id}, '${u.role === 'admin' ? 'user' : 'admin'}')">${u.role === 'admin' ? 'Снять админа' : 'Сделать админом'}</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ud-cols">
+      <div>
+        <div class="ud-act-t">Приложения (${u.apps.length})</div>
+        ${u.apps.length ? u.apps.map(a => `<div class="ud-li">${esc(a.name)} <span class="mono" style="color:var(--ink-3)">· ${esc((a.country||'').toUpperCase())} · ${a.keywords_count} кл. · ${esc(a.status)}</span></div>`).join('') : '<div class="ud-li" style="color:var(--ink-3)">нет</div>'}
+        <div class="ud-act-t" style="margin-top:14px">Заказы (${u.orders.length})</div>
+        ${u.orders.length ? u.orders.map(o => `<div class="ud-li">${esc(o.keyword)} <span class="mono" style="color:var(--ink-3)">· ${o.date} · ${o.delivered}/${o.count} · ${fmtMoney(o.cost)} · </span><span class="pill ${esc(o.status)}">${esc(o.status)}</span></div>`).join('') : '<div class="ud-li" style="color:var(--ink-3)">нет</div>'}
+      </div>
+      <div>
+        <div class="ud-act-t">Транзакции (${u.transactions.length})</div>
+        ${u.transactions.length ? u.transactions.map(t => `<div class="ud-li"><span class="mono ${t.amount>0?'pos':t.amount<0?'neg':''}">${t.amount===0?'—':fmt(t.amount)}</span> <span style="color:var(--ink-3);font-size:11px">${esc(t.description||t.type)} · ${fmtTs(t.created_at)}</span></div>`).join('') : '<div class="ud-li" style="color:var(--ink-3)">нет</div>'}
+        <div class="ud-act-t" style="margin-top:14px">Активность</div>
+        ${u.activity.length ? u.activity.map(a => `<div class="ud-li"><span class="mono">${esc(a.action)}</span> <span style="color:var(--ink-3);font-size:11px">${esc(a.ip||'')} · ${fmtTs(a.created_at)}</span></div>`).join('') : '<div class="ud-li" style="color:var(--ink-3)">нет</div>'}
+      </div>
+    </div>`;
+}
+
+async function udCredit(id) {
+  const amount = parseFloat($('udAmount').value);
+  if (!amount) { alert('Укажи сумму'); return; }
+  try {
+    await adminFetch('/api/admin/credit', { method: 'POST', body: JSON.stringify({ user_id: id, amount, description: $('udDesc').value || 'Корректировка админом' }) });
+    await openUserDetail(id); refresh();
+  } catch (e) { alert('Ошибка: ' + e.message); }
+}
+async function udSetPrice(id, reset) {
+  const val = reset ? null : ($('udPrice').value === '' ? null : parseFloat($('udPrice').value));
+  try {
+    await adminFetch('/api/admin/users/' + id, { method: 'PATCH', body: JSON.stringify({ custom_install_price: val }) });
+    await openUserDetail(id); refresh();
+  } catch (e) { alert('Ошибка: ' + e.message); }
+}
+async function udBlock(id, blocked) {
+  if (blocked && !confirm('Заблокировать клиента? Он не сможет войти и пользоваться кабинетом.')) return;
+  try {
+    await adminFetch('/api/admin/users/' + id, { method: 'PATCH', body: JSON.stringify({ blocked }) });
+    await openUserDetail(id); refresh();
+  } catch (e) { alert('Ошибка: ' + e.message); }
+}
+async function udRole(id, role) {
+  if (!confirm('Сменить роль на "' + role + '"?')) return;
+  try {
+    await adminFetch('/api/admin/users/' + id, { method: 'PATCH', body: JSON.stringify({ role }) });
+    await openUserDetail(id); refresh();
+  } catch (e) { alert('Ошибка: ' + e.message); }
 }
 
 async function confirmTx(id) {
