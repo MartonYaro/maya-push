@@ -103,6 +103,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 24px; /* guarantees the logo never touches the menu */
     background: rgba(10, 9, 8, 0.7);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -113,9 +114,10 @@
     display: flex;
     align-items: center;
     gap: 10px;
+    flex-shrink: 0; /* never squeeze the brand into the menu */
     font-family: 'Archivo', sans-serif;
     font-weight: 800;
-    font-size: 17px;
+    font-size: 19px;
     letter-spacing: -0.02em;
     color: var(--ink);
     text-transform: uppercase;
@@ -134,13 +136,14 @@
 
   .nav-links {
     display: flex;
-    gap: 32px;
+    gap: 28px;
     font-family: 'JetBrains Mono', monospace;
     font-weight: 500;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--ink-2);
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
   }
   .nav-links a {
     position: relative;
@@ -159,6 +162,11 @@
   }
   .nav-links a:hover { color: var(--ink); }
   .nav-links a:hover::before { transform: scaleX(1); transform-origin: left; }
+
+  /* Hide the menu before it gets cramped enough to touch the logo / actions */
+  @media (max-width: 1180px) {
+    .nav-links { display: none; }
+  }
 
   .nav-meta {
     font-family: 'JetBrains Mono', monospace;
