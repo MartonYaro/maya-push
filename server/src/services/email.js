@@ -58,51 +58,104 @@ function escapeHtml(s) {
 
 /* ─────────────────── Templates ─────────────────── */
 
+// Branded, email-client-safe shell (table layout + inline styles — Gmail/Outlook
+// strip <style> and don't support flex/grid). Dark theme matching the landing.
+function emailShell({ preheader, heading, intro, bodyHtml = '', ctaText, ctaUrl, note }) {
+  return `<!DOCTYPE html>
+<html lang="ru" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<meta name="supported-color-schemes" content="dark light">
+<title>MAYA Push</title>
+</head>
+<body style="margin:0; padding:0; background:#070605; -webkit-text-size-adjust:100%;">
+  <span style="display:none!important; visibility:hidden; opacity:0; height:0; width:0; overflow:hidden; mso-hide:all;">${escapeHtml(preheader || heading)}</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#070605;">
+    <tr><td align="center" style="padding:32px 14px;">
+      <table role="presentation" width="520" cellpadding="0" cellspacing="0" border="0" style="width:520px; max-width:100%; background:#100e0c; border:1px solid #232019; border-radius:18px; overflow:hidden;">
+
+        <tr><td style="padding:22px 32px; background:#0a0908; border-bottom:1px solid #232019;">
+          <span style="font-family:Arial,Helvetica,sans-serif; font-weight:800; font-size:18px; letter-spacing:1.5px; color:#f0ead8;">
+            <span style="color:#3aff9f;">&#9650;</span>&nbsp; MAYA <span style="color:#8a8378; font-weight:600;">PUSH</span>
+          </span>
+        </td></tr>
+
+        <tr><td style="padding:38px 32px 6px; font-family:Arial,Helvetica,sans-serif;">
+          <h1 style="margin:0 0 16px; font-size:25px; line-height:1.25; color:#f0ead8; font-weight:800; letter-spacing:-0.01em;">${heading}</h1>
+          ${intro ? `<p style="margin:0 0 8px; font-size:15px; line-height:1.6; color:#b8b0a0;">${intro}</p>` : ''}
+          ${bodyHtml}
+          ${ctaText ? `
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 8px;">
+            <tr><td align="center" bgcolor="#3aff9f" style="border-radius:11px;">
+              <a href="${ctaUrl}" target="_blank" style="display:inline-block; padding:15px 34px; font-family:Arial,Helvetica,sans-serif; font-size:15px; font-weight:700; color:#0a0908; text-decoration:none; border-radius:11px;">${ctaText}</a>
+            </td></tr>
+          </table>` : ''}
+          ${note ? `<p style="margin:18px 0 0; font-size:12px; line-height:1.6; color:#6a6358;">${note}</p>` : ''}
+        </td></tr>
+
+        <tr><td style="padding:24px 32px 30px; border-top:1px solid #232019; font-family:Arial,Helvetica,sans-serif;">
+          <p style="margin:0; font-size:12px; color:#6a6358;">MAYA&nbsp;Push — позиции в&nbsp;App&nbsp;Store и&nbsp;мотивированные установки · <a href="https://mayapush.com" style="color:#3aff9f; text-decoration:none;">mayapush.com</a></p>
+          <p style="margin:7px 0 0; font-size:12px; color:#54504a;">Поддержка — Telegram <a href="https://t.me/ojakos" style="color:#3aff9f; text-decoration:none;">@ojakos</a></p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 export function renderVerifyEmail({ name, verifyUrl }) {
   const subject = 'Подтвердите email — MAYA Push';
-  const html = `
-    <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; background: #0a0908; color: #f0ead8;">
-      <h1 style="font-size: 22px; margin-bottom: 8px;">Привет, ${escapeHtml(name)} 👋</h1>
-      <p style="color: #b8b0a0; line-height: 1.5;">Это подтверждение email для <b>MAYA Push</b>.</p>
-      <p>
-        <a href="${verifyUrl}" style="display: inline-block; padding: 12px 24px; background: #3aff9f; color: #0a0908; text-decoration: none; font-weight: 700; margin: 16px 0;">Подтвердить email →</a>
-      </p>
-      <p style="color: #6a6358; font-size: 12px; margin-top: 24px;">Если кнопка не работает — ссылка: ${verifyUrl}</p>
-      <p style="color: #6a6358; font-size: 12px;">Если вы не регистрировались — просто проигнорируйте письмо.</p>
-    </div>`;
-  const text = `Привет, ${name}!\n\nПодтвердите email перейдя по ссылке:\n${verifyUrl}\n\nЕсли вы не регистрировались — просто проигнорируйте.`;
+  const html = emailShell({
+    preheader: 'Один клик — и аккаунт активен.',
+    heading: `Привет, ${escapeHtml(name)} 👋`,
+    intro: 'Остался один шаг — подтвердите email, чтобы активировать аккаунт <b style="color:#f0ead8;">MAYA&nbsp;Push</b> и открыть кабинет.',
+    ctaText: 'Подтвердить email →',
+    ctaUrl: verifyUrl,
+    note: `Если кнопка не открывается — скопируйте ссылку:<br><a href="${verifyUrl}" style="color:#3aff9f; word-break:break-all;">${verifyUrl}</a><br><br>Если вы не регистрировались — просто проигнорируйте это письмо.`,
+  });
+  const text = `Привет, ${name}!\n\nПодтвердите email, перейдя по ссылке:\n${verifyUrl}\n\nЕсли вы не регистрировались — просто проигнорируйте письмо.`;
   return { subject, html, text };
 }
 
 export function renderResetEmail({ name, resetUrl }) {
   const subject = 'Сброс пароля — MAYA Push';
-  const html = `
-    <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; background: #0a0908; color: #f0ead8;">
-      <h1 style="font-size: 22px;">Сброс пароля</h1>
-      <p style="color: #b8b0a0; line-height: 1.5;">Привет, ${escapeHtml(name)}. Кто-то (надеемся, вы) запросил сброс пароля для аккаунта MAYA Push.</p>
-      <p>
-        <a href="${resetUrl}" style="display: inline-block; padding: 12px 24px; background: #3aff9f; color: #0a0908; text-decoration: none; font-weight: 700; margin: 16px 0;">Установить новый пароль →</a>
-      </p>
-      <p style="color: #6a6358; font-size: 12px;">Ссылка действительна 1 час. Если вы не запрашивали сброс — игнорируйте письмо, пароль не изменится.</p>
-    </div>`;
+  const html = emailShell({
+    preheader: 'Ссылка для сброса пароля действительна 1 час.',
+    heading: 'Сброс пароля',
+    intro: `Привет, ${escapeHtml(name)}. Кто-то (надеемся, вы) запросил сброс пароля для аккаунта MAYA&nbsp;Push.`,
+    ctaText: 'Установить новый пароль →',
+    ctaUrl: resetUrl,
+    note: 'Ссылка действительна 1&nbsp;час. Если вы не запрашивали сброс — игнорируйте письмо, пароль останется прежним.',
+  });
   const text = `Сброс пароля для MAYA Push.\n\nСсылка (действительна 1 час):\n${resetUrl}\n\nЕсли вы не запрашивали — игнорируйте.`;
   return { subject, html, text };
 }
 
 export function renderWelcomeEmail({ name, dashboardUrl }) {
   const subject = '🎉 Добро пожаловать в MAYA Push';
-  const html = `
-    <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; background: #0a0908; color: #f0ead8;">
-      <h1 style="font-size: 22px;">Добро пожаловать, ${escapeHtml(name)}! 🎉</h1>
-      <p style="color: #b8b0a0; line-height: 1.5;">
-        Email подтверждён, аккаунт активен. Теперь:<br>
-        1. Добавь приложение из&nbsp;App Store<br>
-        2. Укажи ключи которые хочешь продвинуть<br>
-        3. Запусти кампанию или просто наблюдай за&nbsp;позициями
-      </p>
-      <p><a href="${dashboardUrl}" style="display: inline-block; padding: 12px 24px; background: #3aff9f; color: #0a0908; text-decoration: none; font-weight: 700;">Открыть кабинет →</a></p>
-      <p style="color: #6a6358; font-size: 12px; margin-top: 24px;">Вопросы — в Telegram <a href="https://t.me/ojakos" style="color: #3aff9f;">@ojakos</a></p>
-    </div>`;
+  const steps = `
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 4px;">
+      ${[
+        'Добавьте приложение из&nbsp;App&nbsp;Store',
+        'Укажите ключи, которые хотите продвинуть',
+        'Запустите кампанию или просто следите за&nbsp;позициями',
+      ].map((s, i) => `
+      <tr><td style="padding:6px 0; font-family:Arial,Helvetica,sans-serif; font-size:15px; color:#b8b0a0; line-height:1.5;">
+        <span style="display:inline-block; width:24px; height:24px; background:#16261d; color:#3aff9f; border-radius:6px; text-align:center; line-height:24px; font-weight:700; font-size:13px; margin-right:10px;">${i + 1}</span>${s}
+      </td></tr>`).join('')}
+    </table>`;
+  const html = emailShell({
+    preheader: 'Email подтверждён — аккаунт активен.',
+    heading: `Добро пожаловать, ${escapeHtml(name)}! 🎉`,
+    intro: 'Email подтверждён, аккаунт активен. Дальше всё просто:',
+    bodyHtml: steps,
+    ctaText: 'Открыть кабинет →',
+    ctaUrl: dashboardUrl,
+  });
   const text = `Добро пожаловать, ${name}!\n\nКабинет: ${dashboardUrl}\nПоддержка: @ojakos`;
   return { subject, html, text };
 }
