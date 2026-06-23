@@ -13,6 +13,7 @@ import dashboardRoutes from './routes/dashboard.js';
 import adminRoutes from './routes/admin.js';
 import researchRoutes from './routes/research.js';
 import paymentsRoutes from './routes/payments.js';
+import telegramRoutes from './routes/telegram.js';
 import { nowpayments } from './services/nowpayments.js';
 import { attachStream } from './sse.js';
 import { runPositionTick } from './services/positionWorker.js';
@@ -91,6 +92,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/research', researchRoutes);
 app.use('/api/payments', paymentsRoutes);
+app.use('/api/telegram', telegramRoutes);
 
 app.get('/api/stream', (req, res) => attachStream(req, res));
 

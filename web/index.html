@@ -2455,6 +2455,7 @@
     <a href="#cases"    data-en="Cases">Кейсы</a>
     <a href="#features" data-en="Inside">Что внутри</a>
     <a href="#pricing"  data-en="Pricing">Цены</a>
+    <a href="#faq"      data-en="FAQ">FAQ</a>
     <a href="https://t.me/ojakos" data-en="Contact">Контакт</a>
   </div>
   <div class="nav-actions">
@@ -3395,6 +3396,101 @@
   <div class="price-foot" data-en="<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><circle cx='12' cy='12' r='10'/><line x1='12' y1='16' x2='12' y2='12'/><line x1='12' y1='8' x2='12.01' y2='8'/></svg>No minimum deposit · funds are fully spent on installs">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
     Без&nbsp;минимального депозита · средства полностью откручиваются в&nbsp;инсталлы
+  </div>
+</section>
+
+<!-- FAQ -->
+<style>
+  .faq { padding: 100px 28px; max-width: 940px; margin: 0 auto; }
+  .faq-top { margin-bottom: 40px; }
+  .faq-top .faq-kicker { font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:0.18em; text-transform:uppercase; color:var(--jade); }
+  .faq-top h2 { margin-top:12px; font-family:'Archivo',sans-serif; font-weight:900; text-transform:uppercase; font-size:clamp(34px,5.5vw,72px); line-height:0.95; letter-spacing:-0.03em; color:var(--ink); }
+  .faq-list { border-top:1px solid var(--line); }
+  .faq-item { border-bottom:1px solid var(--line); }
+  .faq-item summary {
+    cursor:pointer; list-style:none; display:flex; align-items:center; justify-content:space-between; gap:20px;
+    padding:24px 0; font-family:'Archivo',sans-serif; font-weight:600; font-size:clamp(16px,2.1vw,21px);
+    color:var(--ink); transition:color .2s;
+  }
+  .faq-item summary:hover { color:var(--jade); }
+  .faq-item summary::-webkit-details-marker { display:none; }
+  .faq-item summary .faq-plus { flex:0 0 auto; width:26px; height:26px; position:relative; }
+  .faq-item summary .faq-plus::before,
+  .faq-item summary .faq-plus::after { content:''; position:absolute; background:var(--jade); border-radius:2px; transition:transform .25s, opacity .25s; }
+  .faq-item summary .faq-plus::before { top:12px; left:4px; right:4px; height:2px; }
+  .faq-item summary .faq-plus::after  { left:12px; top:4px; bottom:4px; width:2px; }
+  .faq-item[open] summary .faq-plus::after { transform:rotate(90deg); opacity:0; }
+  .faq-answer { padding:0 0 26px; max-width:760px; color:var(--ink-2); line-height:1.7; font-size:15px; }
+  .faq-answer b { color:var(--ink); font-weight:600; }
+  .faq-support { margin-top:44px; display:flex; flex-wrap:wrap; align-items:center; gap:16px; padding:26px 28px; border:1px solid var(--line-2); border-radius:14px; background:var(--bg-2,#11100e); }
+  .faq-support .fs-t { font-family:'Archivo',sans-serif; font-weight:700; font-size:18px; color:var(--ink); }
+  .faq-support .fs-s { color:var(--ink-3); font-size:14px; }
+  .faq-support a.fs-btn { margin-left:auto; display:inline-flex; align-items:center; gap:8px; padding:12px 22px; background:var(--jade); color:var(--bg); font-weight:700; text-decoration:none; border-radius:10px; white-space:nowrap; }
+  .faq-support a.fs-btn:hover { background:transparent; color:var(--jade); box-shadow:inset 0 0 0 1px var(--jade); }
+  @media (max-width:600px){ .faq{padding:70px 20px;} .faq-support{flex-direction:column; align-items:flex-start;} .faq-support a.fs-btn{margin-left:0;} }
+</style>
+<section id="faq" class="faq">
+  <div class="faq-top">
+    <div class="faq-kicker" data-en="FAQ · how it works">FAQ · как это работает</div>
+    <h2 data-en="Questions &amp;<br>answers.">Вопросы<br>и&nbsp;ответы.</h2>
+  </div>
+
+  <div class="faq-list">
+    <details class="faq-item">
+      <summary><span data-en="How does MAYA Push work?">Как работает MAYA Push?</span><span class="faq-plus"></span></summary>
+      <div class="faq-answer" data-en="We pick the keywords you want to rank for and drive motivated installs on them from real devices. The App Store sees a spike of searches and downloads for the query and lifts your app in the results — while you track positions in the dashboard.">Подбираем ключевые запросы, под которые нужно поднять приложение, и приводим на них мотивированные установки с&nbsp;реальных устройств. App&nbsp;Store видит всплеск поисков и&nbsp;загрузок по&nbsp;запросу и&nbsp;поднимает приложение в&nbsp;выдаче — а&nbsp;вы следите за&nbsp;позициями в&nbsp;кабинете.</div>
+    </details>
+
+    <details class="faq-item">
+      <summary><span data-en="What are keyword (motivated) installs?">Что такое мотивированные установки по&nbsp;ключам?</span><span class="faq-plus"></span></summary>
+      <div class="faq-answer" data-en="Downloads made after searching the App Store for your app by a specific keyword — not via a direct link. Search + install by query is the key ranking signal that grows your positions.">Загрузки, которые делаются после поиска вашего приложения в&nbsp;App&nbsp;Store по&nbsp;конкретному ключу (а&nbsp;не по&nbsp;прямой ссылке). Поиск и&nbsp;установка по&nbsp;запросу&nbsp;— главный сигнал ранжирования для роста позиций.</div>
+    </details>
+
+    <details class="faq-item">
+      <summary><span data-en="How many installs to reach the top?">Сколько установок нужно для&nbsp;топа?</span><span class="faq-plus"></span></summary>
+      <div class="faq-answer" data-en="It depends on the keyword frequency and competition in the geo. Low-frequency queries can reach the top on 50–200 installs, high-frequency ones on a few thousand. You can start with a test and scale up.">Зависит от&nbsp;частотности ключа и&nbsp;конкуренции в&nbsp;гео. Низкочастотные запросы могут выйти в&nbsp;топ на&nbsp;50–200 установках, высокочастотные&nbsp;— на&nbsp;нескольких тысячах. Можно начать с&nbsp;теста и&nbsp;наращивать.</div>
+    </details>
+
+    <details class="faq-item">
+      <summary><span data-en="When are results visible?">Когда виден результат?</span><span class="faq-plus"></span></summary>
+      <div class="faq-answer" data-en="First position moves are usually visible within a few days, with consolidation over 1–2 weeks. After that, organic traffic takes over.">Первые сдвиги по&nbsp;позициям обычно заметны в&nbsp;течение нескольких дней, закрепление&nbsp;— за&nbsp;1–2 недели. Дальше подключается органика.</div>
+    </details>
+
+    <details class="faq-item">
+      <summary><span data-en="Is it safe for my app?">Это безопасно для&nbsp;приложения?</span><span class="faq-plus"></span></summary>
+      <div class="faq-answer" data-en="We use real iPhones and local IPs in the target geos — no emulators or proxy farms — at a smooth, human-like pace. That reduces risk compared with bot traffic.">Используем реальные iPhone и&nbsp;локальные IP в&nbsp;нужных гео, без эмуляторов и&nbsp;прокси-ферм, с&nbsp;плавным человеческим темпом. Это снижает риски по&nbsp;сравнению с&nbsp;ботовым трафиком.</div>
+    </details>
+
+    <details class="faq-item">
+      <summary><span data-en="Which geos are available?">Какие гео доступны?</span><span class="faq-plus"></span></summary>
+      <div class="faq-answer" data-en="12+ countries, including the US, Europe and major markets. You set the geo when configuring a keyword.">12+ стран, включая США, Европу и&nbsp;крупные рынки. Нужное гео указываете при&nbsp;настройке ключа.</div>
+    </details>
+
+    <details class="faq-item">
+      <summary><span data-en="How much does it cost? Is there a minimum?">Сколько стоит и&nbsp;есть ли&nbsp;минимум?</span><span class="faq-plus"></span></summary>
+      <div class="faq-answer" data-en="From <b>$0.30</b> per install, dropping with volume. <b>No minimum deposit</b> — start with any amount; funds are fully spent on installs.">От&nbsp;<b>$0.30</b> за&nbsp;установку, цена снижается с&nbsp;объёмом. <b>Минимального депозита нет</b>&nbsp;— можно начать с&nbsp;любой суммы, средства целиком уходят в&nbsp;установки.</div>
+    </details>
+
+    <details class="faq-item">
+      <summary><span data-en="How do I top up the balance?">Как пополнить баланс?</span><span class="faq-plus"></span></summary>
+      <div class="faq-answer" data-en="Via a manager (they send the details in Telegram) or with crypto. The balance is credited after payment and then spent on installs.">Через менеджера (он пишет реквизиты в&nbsp;Telegram) или криптовалютой. Баланс зачисляется после оплаты и&nbsp;дальше тратится на&nbsp;установки.</div>
+    </details>
+
+    <details class="faq-item">
+      <summary><span data-en="How are positions tracked?">Как отслеживаются позиции?</span><span class="faq-plus"></span></summary>
+      <div class="faq-answer" data-en="We parse current positions straight from the App Store and refresh them several times a day. The dashboard shows the trend for each keyword and geo.">Парсим текущие позиции прямо из&nbsp;App&nbsp;Store и&nbsp;обновляем несколько раз в&nbsp;день. В&nbsp;кабинете видна динамика по&nbsp;каждому ключу и&nbsp;гео.</div>
+    </details>
+  </div>
+
+  <div class="faq-support">
+    <div>
+      <div class="fs-t" data-en="Still have questions?">Остались вопросы?</div>
+      <div class="fs-s" data-en="Write to our support bot — it goes straight to a manager, the reply comes back in the same chat.">Напишите боту поддержки&nbsp;— сообщение уйдёт прямо менеджеру, ответ придёт туда&nbsp;же.</div>
+    </div>
+    <a class="fs-btn" href="https://t.me/MayaPush_bot" target="_blank" rel="noopener">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M11.94 2.5a9.5 9.5 0 1 0 0 19 9.5 9.5 0 0 0 0-19Zm4.43 6.49-1.48 6.96c-.11.5-.4.62-.81.39l-2.24-1.65-1.08 1.04c-.12.12-.22.22-.45.22l.16-2.28 4.15-3.75c.18-.16-.04-.25-.28-.09l-5.13 3.23-2.21-.69c-.48-.15-.49-.48.1-.71l8.63-3.33c.4-.15.75.09.62.66Z"/></svg>
+      <span data-en="Support — @MayaPush_bot">Поддержка — @MayaPush_bot</span>
+    </a>
   </div>
 </section>
 

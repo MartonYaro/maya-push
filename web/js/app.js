@@ -593,6 +593,7 @@ async function routeFromHash() {
         campaigns: renderCampaigns,
         topup: renderTopup,
         history: renderHistory,
+        faq: renderFaq,
       };
       pageContent.innerHTML = (renderers[page] || renderDashboard)();
     }
@@ -1485,6 +1486,46 @@ function renderHistory() {
           : `<div class="table-wrap"><table class="tbl"><thead><tr>
               <th>Дата</th><th>Тип</th><th>Описание</th><th style="text-align:right">Сумма</th><th>Статус</th>
             </tr></thead><tbody>${txs.map(t => txRow(t)).join('')}</tbody></table></div>`}
+      </div></div>
+    </div>`;
+}
+
+const FAQ_ITEMS = [
+  ['Как работает MAYA Push?', 'Подбираем ключевые запросы, под которые нужно поднять приложение, и приводим на них мотивированные установки с реальных устройств. App Store видит всплеск поисков и загрузок по запросу и поднимает приложение в выдаче — а вы следите за позициями здесь, в кабинете.'],
+  ['Что такое мотивированные установки по ключам?', 'Это загрузки, которые делаются после поиска вашего приложения в App Store по конкретному ключу (а не по прямой ссылке). Поиск и установка по запросу — главный сигнал ранжирования для роста позиций.'],
+  ['Сколько установок нужно для топа?', 'Зависит от частотности ключа и конкуренции в гео. Низкочастотные запросы могут выйти в топ на 50–200 установках, высокочастотные — на нескольких тысячах. Можно начать с теста и наращивать.'],
+  ['Когда виден результат?', 'Первые сдвиги по позициям обычно заметны в течение нескольких дней, закрепление — за 1–2 недели. Дальше подключается органика.'],
+  ['Это безопасно для приложения?', 'Используем реальные iPhone и локальные IP в нужных гео, без эмуляторов и прокси-ферм, с плавным человеческим темпом. Это снижает риски по сравнению с ботовым трафиком.'],
+  ['Сколько стоит и есть ли минимум?', 'От $0.30 за установку, цена снижается с объёмом. Минимального депозита нет — можно начать с любой суммы, средства целиком уходят в установки.'],
+  ['Как пополнить баланс?', 'Через менеджера (он пишет реквизиты в Telegram) или криптовалютой. Баланс зачисляется после оплаты и дальше тратится на установки.'],
+  ['Как отслеживаются позиции?', 'Парсим текущие позиции прямо из App Store и обновляем несколько раз в день. В разделе «Наблюдения» видна динамика по каждому ключу и гео.'],
+  ['Зачем подтверждать email?', 'Подтверждение открывает полный функционал, включая трекинг объёма по ключам. После регистрации мы присылаем письмо со ссылкой — один клик, и аккаунт активен.'],
+];
+
+function renderFaq() {
+  return `
+    <div class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-subtitle">/ FAQ</div>
+          <div class="page-title">Вопросы <span class="accent">и ответы</span></div>
+        </div>
+      </div>
+      <div class="card"><div class="card-body">
+        ${FAQ_ITEMS.map(([q, a]) => `
+          <details class="faq-row" style="border-bottom:1px solid var(--line, #232019); padding:4px 0;">
+            <summary style="cursor:pointer; list-style:none; padding:16px 0; font-weight:600; font-size:16px; color:var(--ink); display:flex; justify-content:space-between; gap:16px;">
+              <span>${escapeHtml(q)}</span><span style="color:var(--jade); flex:0 0 auto;">+</span>
+            </summary>
+            <div style="padding:0 0 18px; color:var(--ink-2); line-height:1.7; font-size:14px; max-width:680px;">${escapeHtml(a)}</div>
+          </details>`).join('')}
+        <div style="margin-top:28px; display:flex; flex-wrap:wrap; align-items:center; gap:14px;">
+          <div>
+            <div style="font-weight:700; color:var(--ink);">Не нашли ответ?</div>
+            <div style="color:var(--ink-3); font-size:13px;">Напишите боту поддержки — ответит менеджер.</div>
+          </div>
+          <a href="https://t.me/MayaPush_bot" target="_blank" rel="noopener" class="btn btn-primary" style="margin-left:auto;">Поддержка → @MayaPush_bot</a>
+        </div>
       </div></div>
     </div>`;
 }

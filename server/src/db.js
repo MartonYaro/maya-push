@@ -147,6 +147,15 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_user_time   ON audit_log(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_action_time ON audit_log(action, created_at);
+
+-- Support relay: maps a message the bot posted in the admin chat back to the
+-- user's chat, so an admin reply (reply-to that message) reaches the right user.
+CREATE TABLE IF NOT EXISTS support_map (
+  admin_msg_id INTEGER PRIMARY KEY,
+  user_chat_id INTEGER NOT NULL,
+  user_name    TEXT,
+  created_at   INTEGER NOT NULL
+);
 `);
 
 // Admins from ADMIN_EMAILS (comma-separated).

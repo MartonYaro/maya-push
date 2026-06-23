@@ -47,6 +47,34 @@ export async function notifyAdmin(text, opts = {}) {
   }
 }
 
+/**
+ * Send a message to an arbitrary chat. Returns { ok, message_id }.
+ * Used by the support relay (user <-> admin) bot.
+ */
+export async function sendMessage(chatId, text, opts = {}) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return { ok: false, fallback: true };
+  try {
+    const res = await fetch(`${API(token)}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: opts.parseMode || 'HTML',
+        disable_web_page_preview: true,
+        reply_to_message_id: opts.replyTo,
+        reply_markup: opts.reply_markup,
+      }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json.ok) return { ok: false, error: json.description };
+    return { ok: true, message_id: json.result && json.result.message_id };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
 /* ─────────────── Templates ─────────────── */
 
 export function tgEscape(s) {
