@@ -87,6 +87,29 @@ router.patch('/users/:id', (req, res) => {
   res.json({ ok: true, user: row });
 });
 
+// Permanently delete a user and everything tied to them. Guards: no self, no admins.
+router.delete('/users/:id', (req, res) => {
+  const u = db.prepare('SELECT id, email, role FROM users WHERE id = ?').get(req.params.id);
+  if (!u) return res.status(404).json({ error: 'not_found' });
+  if (u.id === req.user.id) return res.status(400).json({ error: 'cannot_delete_self' });
+  if (u.role === 'admin') return res.status(400).json({ error: 'cannot_delete_admin' });
+
+  const wipe = db.transaction((uid) => {
+    const kwScope = `SELECT k.id FROM keywords k JOIN apps a ON a.id = k.app_id WHERE a.user_id = ?`;
+    db.prepare(`DELETE FROM keyword_positions WHERE keyword_id IN (${kwScope})`).run(uid);
+    db.prepare(`DELETE FROM installs          WHERE keyword_id IN (${kwScope})`).run(uid);
+    db.prepare(`DELETE FROM keywords WHERE app_id IN (SELECT id FROM apps WHERE user_id = ?)`).run(uid);
+    db.prepare(`DELETE FROM apps               WHERE user_id = ?`).run(uid);
+    db.prepare(`DELETE FROM transactions       WHERE user_id = ?`).run(uid);
+    db.prepare(`DELETE FROM email_verifications WHERE user_id = ?`).run(uid);
+    db.prepare(`DELETE FROM password_resets    WHERE user_id = ?`).run(uid);
+    db.prepare(`DELETE FROM users              WHERE id = ?`).run(uid);
+  });
+  wipe(u.id);
+  audit(req, { userId: u.id, actorId: req.user.id, action: 'admin.user_delete', meta: { email: u.email } });
+  res.json({ ok: true, deleted: u.id });
+});
+
 router.get('/transactions', (req, res) => {
   const status = req.query.status || null;
   const sql = status

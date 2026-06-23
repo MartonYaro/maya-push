@@ -593,6 +593,7 @@ function renderUserDetail(u) {
         <div class="ud-row">
           <button class="btn ${u.blocked ? 'primary' : 'danger'}" onclick="udBlock(${u.id}, ${u.blocked ? 0 : 1})">${u.blocked ? 'Разблокировать' : 'Заблокировать'}</button>
           <button class="btn" onclick="udRole(${u.id}, '${u.role === 'admin' ? 'user' : 'admin'}')">${u.role === 'admin' ? 'Снять админа' : 'Сделать админом'}</button>
+          ${u.role === 'admin' ? '' : `<button class="btn danger" onclick="udDelete(${u.id}, '${esc(u.email)}')">Удалить навсегда</button>`}
         </div>
       </div>
     </div>
@@ -640,6 +641,14 @@ async function udRole(id, role) {
   try {
     await adminFetch('/api/admin/users/' + id, { method: 'PATCH', body: JSON.stringify({ role }) });
     await openUserDetail(id); refresh();
+  } catch (e) { alert('Ошибка: ' + e.message); }
+}
+async function udDelete(id, email) {
+  if (!confirm('Удалить навсегда аккаунт ' + email + '?\n\nБудут стёрты его приложения, ключи, заказы и транзакции. Это необратимо.')) return;
+  try {
+    await adminFetch('/api/admin/users/' + id, { method: 'DELETE' });
+    document.getElementById('userModal').style.display = 'none';
+    refresh();
   } catch (e) { alert('Ошибка: ' + e.message); }
 }
 
