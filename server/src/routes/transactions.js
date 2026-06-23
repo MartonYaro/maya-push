@@ -5,9 +5,17 @@ import { broadcast } from '../sse.js';
 import { notifyAdmin, tgNewTopup, tgTopupConfirmed } from '../services/telegram.js';
 import { audit } from '../services/audit.js';
 import { rateLimit } from '../middleware/rateLimit.js';
+import { nowpayments } from '../services/nowpayments.js';
 
 const router = Router();
 router.use(requireAuth);
+
+// Absolute, public base URL for callbacks/redirects (app host preferred).
+function publicBase() {
+  if (process.env.APP_PUBLIC_URL) return process.env.APP_PUBLIC_URL.replace(/\/$/, '');
+  if (process.env.APP_HOST) return `https://${process.env.APP_HOST}`;
+  return (process.env.PUBLIC_URL || '').replace(/\/$/, '');
+}
 
 router.get('/', (req, res) => {
   const limit = Math.min(+req.query.limit || 100, 500);
@@ -27,7 +35,7 @@ router.post('/topup',
   async (req, res) => {
     const { amount, method, comment, telegram } = req.body || {};
     const a = Math.max(0, parseFloat(amount) || 0);
-    if (a < 1500) return res.status(400).json({ error: 'min_topup_1500' });
+    if (a <= 0) return res.status(400).json({ error: 'invalid_amount' });
     if (a > 1_000_000) return res.status(400).json({ error: 'max_topup_exceeded' });
 
     // Require a Telegram contact — manager DMs the user with payment details
@@ -69,6 +77,49 @@ router.post('/topup',
     } catch {}
 
     res.json({ transaction: row });
+  }
+);
+
+/**
+ * Crypto top-up via NOWPayments. Creates a pending transaction and a hosted
+ * invoice; the balance is credited only when the IPN webhook reports success.
+ * Body: { amount }. Returns { invoice_url } to redirect the user to.
+ */
+router.post('/crypto',
+  rateLimit({ windowMs: 60 * 60_000, max: 20, keyName: 'user' }),
+  async (req, res) => {
+    if (!nowpayments.isConfigured) return res.status(503).json({ error: 'crypto_unavailable' });
+    const a = Math.max(0, parseFloat((req.body || {}).amount) || 0);
+    if (a <= 0) return res.status(400).json({ error: 'invalid_amount' });
+    if (a > 1_000_000) return res.status(400).json({ error: 'max_topup_exceeded' });
+
+    const info = db.prepare(
+      `INSERT INTO transactions (user_id, type, amount, status, description, created_at)
+       VALUES (?, 'topup', ?, 'pending', ?, ?)`
+    ).run(req.user.id, a, 'Crypto top-up (NOWPayments)', now());
+    const txId = info.lastInsertRowid;
+
+    try {
+      const base = publicBase();
+      const inv = await nowpayments.createInvoice({
+        amount: a,
+        orderId: `maya_${txId}`,
+        description: `MAYA Push top-up #${txId}`,
+        ipnUrl: `${base}/api/payments/nowpayments/ipn`,
+        successUrl: `${base}/dashboard#billing`,
+        cancelUrl: `${base}/dashboard#billing`,
+      });
+      db.prepare('UPDATE transactions SET description = ? WHERE id = ?')
+        .run(`Crypto top-up (NOWPayments) · invoice ${inv.id}`, txId);
+      const row = db.prepare('SELECT * FROM transactions WHERE id = ?').get(txId);
+      broadcast(req.user.id, 'transaction.created', row);
+      audit(req, { userId: req.user.id, action: 'transaction.crypto_invoice', meta: { tx_id: txId, amount: a, invoice: inv.id } });
+      res.json({ invoice_url: inv.invoice_url, transaction: row });
+    } catch (e) {
+      // Roll back the placeholder so we don't leave a dangling pending row.
+      db.prepare("DELETE FROM transactions WHERE id = ? AND status = 'pending'").run(txId);
+      res.status(502).json({ error: 'crypto_create_failed' });
+    }
   }
 );
 

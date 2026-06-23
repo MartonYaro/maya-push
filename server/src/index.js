@@ -12,6 +12,8 @@ import txRoutes from './routes/transactions.js';
 import dashboardRoutes from './routes/dashboard.js';
 import adminRoutes from './routes/admin.js';
 import researchRoutes from './routes/research.js';
+import paymentsRoutes from './routes/payments.js';
+import { nowpayments } from './services/nowpayments.js';
 import { attachStream } from './sse.js';
 import { runPositionTick } from './services/positionWorker.js';
 import { runBackup } from './services/backup.js';
@@ -68,6 +70,7 @@ app.get('/api/config', (_req, res) => res.json({
   googleClientId: process.env.GOOGLE_CLIENT_ID || null,
   telegramBot: process.env.TELEGRAM_BOT_USERNAME || null,
   telegramBotId: process.env.TELEGRAM_BOT_TOKEN ? String(process.env.TELEGRAM_BOT_TOKEN).split(':')[0] : null,
+  cryptoEnabled: nowpayments.isConfigured,
 }));
 
 app.get('/api/health', (_req, res) => res.json({
@@ -87,6 +90,7 @@ app.use('/api/transactions', txRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/research', researchRoutes);
+app.use('/api/payments', paymentsRoutes);
 
 app.get('/api/stream', (req, res) => attachStream(req, res));
 

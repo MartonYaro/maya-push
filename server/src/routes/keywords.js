@@ -9,7 +9,7 @@ import { LIMITS } from '../config/limits.js';
 const router = Router();
 router.use(requireAuth);
 
-const PRICE_PER_INSTALL = { standard: 0.35, fast: 0.55, premium: 0.85 };
+const PRICE_PER_INSTALL = { standard: 0.30, volume: 0.25, scale: 0.13, fast: 0.55, premium: 0.85 };
 
 function ownsApp(userId, appId) {
   return db.prepare('SELECT id FROM apps WHERE id = ? AND user_id = ?').get(appId, userId);

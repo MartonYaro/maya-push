@@ -76,6 +76,7 @@
     listTransactions: () => request('GET', '/transactions'),
     topup:    (amount, method, comment, telegram) =>
       request('POST', '/transactions/topup', { amount, method, comment, telegram }),
+    cryptoTopup: (amount) => request('POST', '/transactions/crypto', { amount }),
     confirmTx: (id) => request('POST', '/transactions/' + id + '/confirm'),
 
     // dashboard

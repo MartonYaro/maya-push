@@ -221,7 +221,7 @@ const AUTH_ERRORS = {
   invalid_token: 'Ссылка недействительна',
   expired_token: 'Срок действия ссылки истёк',
   email_verification_required: 'Подтверди email — мы отправили письмо со ссылкой',
-  min_topup_1500: 'Минимальный депозит — $1500',
+  invalid_amount: 'Введите корректную сумму',
   max_topup_exceeded: 'Слишком большая сумма за раз',
   telegram_required: 'Укажите ваш Telegram — менеджер напишет с реквизитами',
   invalid_telegram: 'Неверный формат Telegram (4-32 символа: буквы, цифры, _)',
@@ -1004,7 +1004,7 @@ function renderCampaigns() {
 const PRICING_TIERS = [
   {
     id: 'standard', name: 'Стандарт',  pricePerInstall: 0.30,
-    minDeposit: 1500,  installs: 5000,
+    minDeposit: 0,  installs: 5000,
     desc: 'Базовый темп: ~50–200 установок/день на ключ. Подойдёт для нишевых ключей и тестов.',
     badge: null,
   },
@@ -1042,8 +1042,8 @@ function effectivePrice(planTier) {
 }
 
 function renderTopup() {
-  const presets = PRICING_TIERS.map(t => t.minDeposit);
-  const initialAmount = presets[1]; // start at "Объём"
+  const presets = [300, 1500, 5000, 15000]; // suggested quick amounts (no minimum required)
+  const initialAmount = presets[0];
 
   return `
     <div class="page">
@@ -1118,7 +1118,7 @@ function renderTopup() {
           <div class="form-row">
             <label class="form-label">Сумма депозита, USD</label>
             <input type="number" class="form-input" id="topupCustom"
-              min="1500" step="100" value="${initialAmount}"
+              min="1" step="10" value="${initialAmount}"
               oninput="onTopupAmountChange()" style="font-family: 'JetBrains Mono', monospace; font-size: 16px;">
             <div class="form-help" id="topupCalc"></div>
           </div>
@@ -1136,7 +1136,8 @@ function renderTopup() {
             <textarea class="form-textarea" id="topupComment" rows="3" placeholder="Например: запуск Telegram в США по 5 ключам, нужно подключить тариф «Объём»"></textarea>
           </div>
           <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 8px;">
-            <button class="btn btn-primary" onclick="submitTopup()">Создать заявку</button>
+            <button class="btn btn-primary" id="cryptoTopupBtn" style="display:none" onclick="submitCryptoTopup()">Оплатить криптой →</button>
+            <button class="btn btn-ghost" onclick="submitTopup()">Заявка менеджеру</button>
             <a href="https://t.me/ojakos" class="btn btn-ghost" target="_blank">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
               Telegram @ojakos
@@ -1145,7 +1146,7 @@ function renderTopup() {
         </div>
       </div>
 
-      <script>onTopupAmountChange();<\/script>
+      <script>onTopupAmountChange(); ensureConfig().then(function(c){ if (c && c.cryptoEnabled) { var b = document.getElementById('cryptoTopupBtn'); if (b) b.style.display = ''; } });<\/script>
     </div>`;
 }
 
@@ -1169,8 +1170,8 @@ function onTopupAmountChange() {
   }
   if (indEl) indEl.textContent = '— тариф: ' + tier.name;
   if (calcEl) {
-    if (amount < 1500) {
-      calcEl.innerHTML = '<span style="color: var(--cinnabar);">Минимум $1500</span>';
+    if (amount <= 0) {
+      calcEl.innerHTML = '<span style="color: var(--cinnabar);">Введите сумму</span>';
     } else if (tier.pricePerInstall != null) {
       const installs = Math.floor(amount / tier.pricePerInstall);
       calcEl.innerHTML = `На&nbsp;${formatNum(amount)}&nbsp;USD получите примерно <b style="color:var(--jade)">${formatNum(installs)} установок</b> по&nbsp;тарифу «${tier.name}» ($${tier.pricePerInstall.toFixed(2)} за&nbsp;установку).`;
@@ -2447,7 +2448,7 @@ async function submitTopup() {
   const amount = parseInt(document.getElementById('topupCustom').value, 10) || 0;
   const comment = document.getElementById('topupComment').value.trim();
   const tgRaw = (document.getElementById('topupTelegram').value || '').trim();
-  if (amount < 1500) { toast('Минимальный депозит — $1500', 'error'); return; }
+  if (amount <= 0) { toast('Введите сумму пополнения', 'error'); return; }
 
   // Normalise telegram input: strip @, t.me/, https://t.me/
   const telegram = tgRaw
@@ -2475,10 +2476,41 @@ async function submitTopup() {
     const map = {
       telegram_required: 'Укажите ваш Telegram — менеджер напишет с реквизитами',
       invalid_telegram: 'Неверный формат Telegram. Пример: @yourname',
-      min_topup_1500: 'Минимальный депозит — $1500',
+      invalid_amount: 'Введите корректную сумму',
       max_topup_exceeded: 'Слишком большая сумма за раз',
     };
     toast(map[e.message] || ('Ошибка: ' + e.message), 'error');
+  }
+}
+
+// Cached /api/config (so renderTopup can decide whether to show crypto).
+let _mayaCfg = null;
+async function ensureConfig() {
+  if (!_mayaCfg) { try { _mayaCfg = await API.getConfig(); } catch { _mayaCfg = {}; } }
+  return _mayaCfg;
+}
+
+// Pay with crypto via NOWPayments — creates an invoice and redirects to it.
+async function submitCryptoTopup() {
+  const amount = parseInt(document.getElementById('topupCustom').value, 10) || 0;
+  if (amount <= 0) { toast('Введите сумму пополнения', 'error'); return; }
+  const btn = document.getElementById('cryptoTopupBtn');
+  const label = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Создаём счёт…'; }
+  try {
+    const r = await API.cryptoTopup(amount);
+    if (r && r.invoice_url) { window.location.href = r.invoice_url; return; }
+    toast('Не удалось создать счёт', 'error');
+  } catch (e) {
+    const map = {
+      crypto_unavailable: 'Крипто-оплата пока не подключена',
+      invalid_amount: 'Введите корректную сумму',
+      max_topup_exceeded: 'Слишком большая сумма за раз',
+      crypto_create_failed: 'Не удалось создать счёт, попробуйте позже',
+    };
+    toast(map[e.message] || ('Ошибка: ' + e.message), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = label; }
   }
 }
 
