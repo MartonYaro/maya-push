@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MAYA Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root {
     --bg: #0a0908; --bg-2: #11100e; --bg-3: #181614; --bg-card: #131210;
@@ -116,9 +117,16 @@
   <input id="password" type="password" placeholder="password">
   <button class="btn primary" style="width:100%; padding:12px" onclick="login()">Войти</button>
   <div class="err" id="err"></div>
+
+  <div id="socialAuth" style="display:none; margin-top:18px;">
+    <div style="display:flex; align-items:center; gap:10px; color:var(--ink-3); font-size:11px; margin-bottom:14px;">
+      <span style="flex:1; height:1px; background:var(--line)"></span>ИЛИ<span style="flex:1; height:1px; background:var(--line)"></span>
+    </div>
+    <div id="googleBtnWrap" style="display:none; justify-content:center;"></div>
+  </div>
+
   <div style="margin-top:18px; padding-top:16px; border-top:1px solid var(--line); font-size:12px; color:var(--ink-3); line-height:1.6;">
-    Заходишь через Google или Telegram? Эта форма только для email+пароль.<br>
-    Сначала войди на <a href="/dashboard">основном сайте</a>, потом открой эту страницу — админка подхватит твою сессию.
+    Telegram-вход — через <a href="/dashboard">основной сайт</a>, потом открой эту страницу: админка подхватит сессию.
   </div>
 </div>
 
@@ -251,6 +259,45 @@ function logout() {
   MayaAPI.setToken('');
   $('panel').style.display = 'none';
   $('auth').style.display = 'block';
+  initSocialAuth();
+}
+
+let _socialInited = false;
+async function initSocialAuth() {
+  if (_socialInited) return;
+  let cfg;
+  try { cfg = await MayaAPI.getConfig(); } catch { return; }
+  if (!cfg.googleClientId) return;
+  _socialInited = true;
+  $('socialAuth').style.display = 'block';
+  let tries = 0;
+  const renderGoogle = () => {
+    const gw = $('googleBtnWrap');
+    if (window.google && google.accounts && google.accounts.id) {
+      gw.style.display = 'flex';
+      gw.innerHTML = '';
+      const w = Math.max(220, Math.min(400, gw.clientWidth || 320));
+      google.accounts.id.initialize({ client_id: cfg.googleClientId, callback: onGoogleCredential });
+      google.accounts.id.renderButton(gw, {
+        theme: 'filled_black', size: 'large', shape: 'rectangular',
+        text: 'continue_with', logo_alignment: 'center', width: w,
+      });
+    } else if (tries++ < 40) {
+      setTimeout(renderGoogle, 150);
+    }
+  };
+  renderGoogle();
+}
+
+async function onGoogleCredential(response) {
+  $('err').textContent = '';
+  try {
+    const res = await MayaAPI.googleAuth(response.credential);
+    MayaAPI.setToken(res.token);
+    await enter();
+  } catch (err) {
+    $('err').textContent = 'Ошибка входа через Google: ' + (err.message || err);
+  }
 }
 
 let _refreshTimer = null;
@@ -261,6 +308,7 @@ async function enter() {
     // Show the login screen with a clear message instead of a blank black page
     $('panel').style.display = 'none';
     $('auth').style.display = 'block';
+    initSocialAuth();
     $('err').textContent = (e.message === 'forbidden' || e.status === 403)
       ? 'Этот аккаунт не админ. Попроси добавить твой email в ADMIN_EMAILS.'
       : (e.message === 'no_token' || e.message === 'invalid_token' || e.status === 401)
@@ -604,8 +652,8 @@ async function rejectTx(id) {
 }
 
 (function init() {
-  if (MayaAPI.isAuthed()) enter().catch(() => { $('auth').style.display = 'block'; });
-  else $('auth').style.display = 'block';
+  if (MayaAPI.isAuthed()) enter().catch(() => { $('auth').style.display = 'block'; initSocialAuth(); });
+  else { $('auth').style.display = 'block'; initSocialAuth(); }
 })();
 </script>
 </body>
