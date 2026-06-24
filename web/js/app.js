@@ -668,7 +668,7 @@ function renderDashboard() {
           <div class="qa-card" onclick="goPage('topup')">
             <div class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
             <div class="qa-title">3 · Запусти кампанию</div>
-            <div class="qa-desc">Пополни баланс и закажи установки на ключ — поднимем позицию выше. Цена от $0.13 за установку.</div>
+            <div class="qa-desc">Пополни баланс и закажи установки на ключ — поднимем позицию выше. Цена от $0.12 за установку.</div>
             <div class="qa-arrow">Тарифы →</div>
           </div>
         </div>
@@ -694,7 +694,7 @@ function renderDashboard() {
           <div class="stat-c-val"><span class="accent">$${formatNum(data.balance)}</span></div>
           <div class="stat-c-sub">${lastTopup ? 'Последнее пополнение ' + formatDate(lastTopup.createdAt) : 'Пополнений ещё не было'}</div>
         </div>
-        <div class="stat-c" title="Активный тариф зависит от суммы ваших пополнений. Чем больше депозит — тем дешевле установка.">
+        <div class="stat-c" title="${customPrice != null ? 'Ваша персональная цена за установку, согласованная с менеджером.' : 'Тариф зависит от суммы пополнений. Чем больше депозит — тем дешевле установка.'}">
           <div class="stat-c-lbl">Цена за&nbsp;установку</div>
           <div class="stat-c-val"><span class="accent">${userPrice != null ? '$' + userPrice.toFixed(2) : '—'}</span></div>
           <div class="stat-c-sub">${customPrice != null ? 'индивидуальная цена' : 'тариф «' + escapeHtml(userTier.name) + '»'}${userPrice ? ` · хватит на&nbsp;~${formatNum(Math.floor(data.balance / userPrice))} установок` : ''}</div>
@@ -755,7 +755,7 @@ function renderDashboard() {
                   : `<div class="app-icon-sm" style="--ico-a: ${a.colorA}; --ico-b: ${a.colorB};">${escapeHtml(a.name.slice(0,1).toUpperCase())}</div>`}
                 <div class="app-cell-info">
                   <div class="app-cell-name">${escapeHtml(a.name)}</div>
-                  <div class="app-cell-meta">${escapeHtml(a.category)}</div>
+                  <div class="app-cell-meta">${storeBadge(a.store)}${escapeHtml(a.category)}</div>
                 </div>
               </div></td>
               <td class="mono">${geoLabelHtml(a.country)}</td>
@@ -1013,14 +1013,14 @@ const PRICING_TIERS = [
     badge: null,
   },
   {
-    id: 'volume',   name: 'Объём',     pricePerInstall: 0.25,
-    minDeposit: 5000,  installs: 20000,
+    id: 'volume',   name: 'Объём',     pricePerInstall: 0.20,
+    minDeposit: 5000,  installs: 25000,
     desc: 'Максимум объёма за минимум денег. Под запуски в США и крупные гео.',
     badge: 'популярный',
   },
   {
-    id: 'scale',    name: 'Масштаб',   pricePerInstall: 0.13,
-    minDeposit: 15000, installs: 115000,
+    id: 'scale',    name: 'Масштаб',   pricePerInstall: 0.12,
+    minDeposit: 15000, installs: 125000,
     desc: 'Когда нужна по-настоящему большая воронка установок. Дедикейтед менеджер.',
     badge: null,
   },
@@ -1754,7 +1754,7 @@ function renderAppOverview(app) {
           <div class="qa-card" onclick="goPage('app', '${app.id}/campaigns')">
             <div class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
             <div class="qa-title">Запустить кампанию</div>
-            <div class="qa-desc">Заплатить за&nbsp;установки и&nbsp;поднять позицию по&nbsp;нужному ключу. От&nbsp;$0.13&nbsp;за&nbsp;установку.</div>
+            <div class="qa-desc">Заплатить за&nbsp;установки и&nbsp;поднять позицию по&nbsp;нужному ключу. От&nbsp;$0.12&nbsp;за&nbsp;установку.</div>
             <div class="qa-arrow">Запустить →</div>
           </div>
         </div>

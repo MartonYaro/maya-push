@@ -17,8 +17,8 @@ function requireAdmin(req, res, next) {
 router.use(requireAuth, requireAdmin);
 
 function tierName(dep) {
-  return dep >= 50000 ? 'Enterprise' : dep >= 15000 ? 'Scale ($0.13)'
-       : dep >= 5000 ? 'Volume ($0.25)' : 'Standard ($0.30)';
+  return dep >= 50000 ? 'Enterprise' : dep >= 15000 ? 'Scale ($0.12)'
+       : dep >= 5000 ? 'Volume ($0.20)' : 'Standard ($0.30)';
 }
 
 router.get('/users', (_req, res) => {
