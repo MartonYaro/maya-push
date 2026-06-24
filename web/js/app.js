@@ -598,6 +598,7 @@ async function routeFromHash() {
         faq: renderFaq,
       };
       pageContent.innerHTML = (renderers[page] || renderDashboard)();
+      if (page === 'topup') initTopup();
     }
   } catch (e) {
     console.error(e);
@@ -1182,19 +1183,24 @@ function renderTopup() {
         Нужен другой способ оплаты или нестандартная сумма? Напишите менеджеру
         <a href="https://t.me/MayaPush_bot" target="_blank" style="color:var(--jade)">@MayaPush_bot</a>
       </div>
-
-      <script>onTopupAmountChange(); ensureConfig().then(function(c){
-        var crypto = document.getElementById('cryptoCard');
-        var manager = document.getElementById('managerCard');
-        var fb = document.getElementById('managerFallback');
-        if (c && c.cryptoEnabled) {
-          if (crypto) crypto.style.display = '';
-          if (manager) manager.style.display = 'none';
-          if (fb) fb.style.display = '';
-          onTopupAmountChange();
-        }
-      });<\/script>
     </div>`;
+}
+
+// Runs after the top-up page is rendered (inline <script> in innerHTML never
+// executes, so the router calls this explicitly).
+function initTopup() {
+  onTopupAmountChange();
+  ensureConfig().then(function (c) {
+    const crypto = document.getElementById('cryptoCard');
+    const manager = document.getElementById('managerCard');
+    const fb = document.getElementById('managerFallback');
+    if (c && c.cryptoEnabled) {
+      if (crypto) crypto.style.display = '';
+      if (manager) manager.style.display = 'none';
+      if (fb) fb.style.display = '';
+      onTopupAmountChange();
+    }
+  });
 }
 
 function onTopupAmountChange() {
