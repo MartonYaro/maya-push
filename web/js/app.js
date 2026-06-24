@@ -1124,6 +1124,37 @@ function renderTopup() {
               oninput="onTopupAmountChange()" style="font-family: 'JetBrains Mono', monospace; font-size: 16px;">
             <div class="form-help" id="topupCalc"></div>
           </div>
+        </div>
+      </div>
+
+      <!-- Crypto payment (premium) — shown when NOWPayments is configured -->
+      <div class="card" id="cryptoCard" style="display:none; margin-top:20px; border:1px solid rgba(58,255,159,0.38); background:linear-gradient(180deg, rgba(58,255,159,0.06), rgba(58,255,159,0) 70%);">
+        <div class="card-body">
+          <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+            <div style="width:44px; height:44px; flex:0 0 auto; border-radius:12px; background:var(--jade); color:var(--bg); display:flex; align-items:center; justify-content:center; font-size:22px; box-shadow:0 0 24px rgba(58,255,159,0.35);">◆</div>
+            <div style="flex:1; min-width:200px;">
+              <div style="font-weight:800; font-size:18px; color:var(--ink);">Оплата криптой</div>
+              <div style="color:var(--ink-3); font-size:13px;">300+ монет · моментальное зачисление · без минимума</div>
+            </div>
+            <div id="cryptoEstimate" style="font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--jade); text-align:right; white-space:nowrap;"></div>
+          </div>
+
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin:16px 0 18px;">
+            ${['USDT','BTC','ETH','TON','TRX','BNB','SOL','USDC','LTC','XMR'].map(c => `
+              <span style="font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:600; letter-spacing:0.04em; color:var(--ink-2); padding:5px 10px; border:1px solid var(--line-2); border-radius:8px; background:var(--bg-2);">${c}</span>`).join('')}
+          </div>
+
+          <button class="btn btn-primary" id="cryptoTopupBtn" style="width:100%; padding:15px; font-size:15px; font-weight:700;" onclick="submitCryptoTopup()">Оплатить криптой →</button>
+          <div style="margin-top:11px; font-size:11px; color:var(--ink-3); text-align:center; line-height:1.5;">
+            Защищённая оплата через NOWPayments. Баланс зачислится автоматически после подтверждения сети.
+          </div>
+        </div>
+      </div>
+
+      <!-- Manager request -->
+      <div class="card" style="margin-top:20px;">
+        <div class="card-head"><div class="card-title">Заявка менеджеру</div></div>
+        <div class="card-body">
           <div class="form-row">
             <label class="form-label">
               Ваш Telegram <span style="color:var(--red);">*</span>
@@ -1138,8 +1169,7 @@ function renderTopup() {
             <textarea class="form-textarea" id="topupComment" rows="3" placeholder="Например: запуск Telegram в США по 5 ключам, нужно подключить тариф «Объём»"></textarea>
           </div>
           <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 8px;">
-            <button class="btn btn-primary" id="cryptoTopupBtn" style="display:none" onclick="submitCryptoTopup()">Оплатить криптой →</button>
-            <button class="btn btn-ghost" onclick="submitTopup()">Заявка менеджеру</button>
+            <button class="btn btn-primary" onclick="submitTopup()">Заявка менеджеру</button>
             <a href="https://t.me/ojakos" class="btn btn-ghost" target="_blank">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
               Telegram @ojakos
@@ -1148,7 +1178,7 @@ function renderTopup() {
         </div>
       </div>
 
-      <script>onTopupAmountChange(); ensureConfig().then(function(c){ if (c && c.cryptoEnabled) { var b = document.getElementById('cryptoTopupBtn'); if (b) b.style.display = ''; } });<\/script>
+      <script>onTopupAmountChange(); ensureConfig().then(function(c){ if (c && c.cryptoEnabled) { var b = document.getElementById('cryptoCard'); if (b) b.style.display = ''; onTopupAmountChange(); } });<\/script>
     </div>`;
 }
 
@@ -1179,6 +1209,15 @@ function onTopupAmountChange() {
       calcEl.innerHTML = `На&nbsp;${formatNum(amount)}&nbsp;USD получите примерно <b style="color:var(--jade)">${formatNum(installs)} установок</b> по&nbsp;тарифу «${tier.name}» ($${tier.pricePerInstall.toFixed(2)} за&nbsp;установку).`;
     } else {
       calcEl.innerHTML = 'Цена за&nbsp;установку — индивидуально, обсуждается с&nbsp;менеджером.';
+    }
+  }
+  // Crypto card live estimate
+  const cryptoEst = document.getElementById('cryptoEstimate');
+  if (cryptoEst) {
+    if (amount > 0 && tier.pricePerInstall != null) {
+      cryptoEst.textContent = `$${formatNum(amount)} ≈ ${formatNum(Math.floor(amount / tier.pricePerInstall))} установок`;
+    } else {
+      cryptoEst.textContent = '';
     }
   }
 }
