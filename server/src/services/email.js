@@ -97,7 +97,7 @@ function emailShell({ preheader, heading, intro, bodyHtml = '', ctaText, ctaUrl,
 
         <tr><td style="padding:24px 32px 30px; border-top:1px solid #232019; font-family:Arial,Helvetica,sans-serif;">
           <p style="margin:0; font-size:12px; color:#6a6358;">MAYA&nbsp;Push — позиции в&nbsp;App&nbsp;Store и&nbsp;мотивированные установки · <a href="https://mayapush.com" style="color:#3aff9f; text-decoration:none;">mayapush.com</a></p>
-          <p style="margin:7px 0 0; font-size:12px; color:#54504a;">Поддержка — Telegram <a href="https://t.me/ojakos" style="color:#3aff9f; text-decoration:none;">@ojakos</a></p>
+          <p style="margin:7px 0 0; font-size:12px; color:#54504a;">Поддержка — Telegram <a href="https://t.me/MayaPush_bot" style="color:#3aff9f; text-decoration:none;">@MayaPush_bot</a></p>
         </td></tr>
 
       </table>
@@ -156,6 +156,6 @@ export function renderWelcomeEmail({ name, dashboardUrl }) {
     ctaText: 'Открыть кабинет →',
     ctaUrl: dashboardUrl,
   });
-  const text = `Добро пожаловать, ${name}!\n\nКабинет: ${dashboardUrl}\nПоддержка: @ojakos`;
+  const text = `Добро пожаловать, ${name}!\n\nКабинет: ${dashboardUrl}\nПоддержка: @MayaPush_bot`;
   return { subject, html, text };
 }

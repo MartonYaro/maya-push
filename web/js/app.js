@@ -1168,9 +1168,9 @@ function renderTopup() {
           </div>
           <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 8px;">
             <button class="btn btn-primary" onclick="submitTopup()">Заявка менеджеру</button>
-            <a href="https://t.me/ojakos" class="btn btn-ghost" target="_blank">
+            <a href="https://t.me/MayaPush_bot" class="btn btn-ghost" target="_blank">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-              Telegram @ojakos
+              Telegram @MayaPush_bot
             </a>
           </div>
         </div>
@@ -1179,7 +1179,7 @@ function renderTopup() {
       <!-- Tiny manager fallback shown only when crypto is the primary method -->
       <div id="managerFallback" style="display:none; margin-top:16px; text-align:center; color:var(--ink-3); font-size:13px;">
         Нужен другой способ оплаты или нестандартная сумма? Напишите менеджеру
-        <a href="https://t.me/ojakos" target="_blank" style="color:var(--jade)">@ojakos</a>
+        <a href="https://t.me/MayaPush_bot" target="_blank" style="color:var(--jade)">@MayaPush_bot</a>
       </div>
 
       <script>onTopupAmountChange(); ensureConfig().then(function(c){
