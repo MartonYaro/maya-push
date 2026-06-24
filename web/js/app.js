@@ -1051,7 +1051,7 @@ function renderTopup() {
     <div class="page">
       <div class="page-header">
         <div>
-          <div class="page-subtitle">/ Пополнение · через менеджера</div>
+          <div class="page-subtitle">/ Пополнение · криптой, автоматически</div>
           <div class="page-title">Пополнить <span class="accent">баланс</span></div>
         </div>
       </div>
@@ -1059,9 +1059,7 @@ function renderTopup() {
       <div class="hint">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
         <div>
-          <b>Как это работает.</b> Чем больше депозит — тем дешевле каждая установка.
-          После заявки менеджер свяжется в&nbsp;Telegram <a href="https://t.me/ojakos" style="color:var(--jade)">@ojakos</a>,
-          вы оплачиваете удобным способом — баланс зачисляется сразу. Деньги невозвратные, но&nbsp;полностью откручиваются в&nbsp;установки.
+          <b>Как это работает.</b> Укажите сумму и&nbsp;оплатите криптой&nbsp;— баланс зачислится <b style="color:var(--jade)">автоматически</b> после подтверждения сети, без участия менеджера. Чем больше депозит, тем дешевле установка. Средства невозвратные, но&nbsp;полностью откручиваются в&nbsp;установки.
         </div>
       </div>
 
@@ -1151,8 +1149,8 @@ function renderTopup() {
         </div>
       </div>
 
-      <!-- Manager request -->
-      <div class="card" style="margin-top:20px;">
+      <!-- Manager request — fallback when crypto is unavailable -->
+      <div class="card" id="managerCard" style="margin-top:20px;">
         <div class="card-head"><div class="card-title">Заявка менеджеру</div></div>
         <div class="card-body">
           <div class="form-row">
@@ -1178,7 +1176,23 @@ function renderTopup() {
         </div>
       </div>
 
-      <script>onTopupAmountChange(); ensureConfig().then(function(c){ if (c && c.cryptoEnabled) { var b = document.getElementById('cryptoCard'); if (b) b.style.display = ''; onTopupAmountChange(); } });<\/script>
+      <!-- Tiny manager fallback shown only when crypto is the primary method -->
+      <div id="managerFallback" style="display:none; margin-top:16px; text-align:center; color:var(--ink-3); font-size:13px;">
+        Нужен другой способ оплаты или нестандартная сумма? Напишите менеджеру
+        <a href="https://t.me/ojakos" target="_blank" style="color:var(--jade)">@ojakos</a>
+      </div>
+
+      <script>onTopupAmountChange(); ensureConfig().then(function(c){
+        var crypto = document.getElementById('cryptoCard');
+        var manager = document.getElementById('managerCard');
+        var fb = document.getElementById('managerFallback');
+        if (c && c.cryptoEnabled) {
+          if (crypto) crypto.style.display = '';
+          if (manager) manager.style.display = 'none';
+          if (fb) fb.style.display = '';
+          onTopupAmountChange();
+        }
+      });<\/script>
     </div>`;
 }
 
