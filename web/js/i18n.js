@@ -241,6 +241,8 @@
     "Целевая позиция в поиске": "Target position in search",
     "Цель": "Target",
     "Цена за установку": "Price per install",
+    "Ваш персональный тариф": "Your personal rate",
+    "Индивидуальная цена, согласованная с менеджером. Действует на все ключи и гео, без привязки к объёму депозита.": "A custom price agreed with your manager. Applies to all keywords and geos, regardless of deposit size.",
     "Что дальше?": "What's next?",
     "Что это?": "What's this?",
     "Чтобы запустить кампанию — добавь хотя бы один поисковый запрос. После этого сможешь заказать установки на него.": "To launch a campaign, add at least one search query. Then you can order installs for it.",

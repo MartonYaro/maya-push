@@ -1048,6 +1048,8 @@ function effectivePrice(planTier) {
 function renderTopup() {
   const presets = [300, 1500, 5000, 15000]; // suggested quick amounts (no minimum required)
   const initialAmount = presets[0];
+  const customPrice = (data.user && data.user.custom_install_price != null)
+    ? Number(data.user.custom_install_price) : null;
 
   return `
     <div class="page">
@@ -1065,6 +1067,24 @@ function renderTopup() {
         </div>
       </div>
 
+      ${customPrice != null ? `
+      <div class="card" style="border:1px solid rgba(58,255,159,0.4); background:linear-gradient(180deg, rgba(58,255,159,0.07), rgba(58,255,159,0) 70%);">
+        <div class="card-body">
+          <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
+            <div style="width:46px; height:46px; flex:0 0 auto; border-radius:12px; background:var(--jade); color:var(--bg); display:flex; align-items:center; justify-content:center; box-shadow:0 0 24px rgba(58,255,159,0.35);">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+            </div>
+            <div>
+              <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--jade); letter-spacing:0.14em; text-transform:uppercase;">Ваш персональный тариф</div>
+              <div style="font-size:38px; font-weight:800; color:var(--ink); margin-top:4px; line-height:1;">$${customPrice.toFixed(2)} <span style="font-size:13px; font-weight:400; color:var(--ink-3);">/ установка</span></div>
+            </div>
+            <div style="margin-left:auto; max-width:300px; text-align:right; color:var(--ink-3); font-size:13px; line-height:1.5;">
+              Индивидуальная цена, согласованная с&nbsp;менеджером. Действует на&nbsp;все ключи и&nbsp;гео, без&nbsp;привязки к&nbsp;объёму депозита.
+            </div>
+          </div>
+        </div>
+      </div>
+      ` : `
       <div class="card">
         <div class="card-head"><div class="card-title">Тарифы</div></div>
         <div class="card-body" style="padding: 0;">
@@ -1100,6 +1120,7 @@ function renderTopup() {
           </div>
         </div>
       </div>
+      `}
 
       <div class="card" style="margin-top: 24px;">
         <div class="card-head">
@@ -1208,26 +1229,36 @@ function onTopupAmountChange() {
   if (!inp) return;
   const amount = parseInt(inp.value, 10) || 0;
   const tier = tierFromAmount(amount);
+  const customPrice = (data.user && data.user.custom_install_price != null)
+    ? Number(data.user.custom_install_price) : null;
+  // Personal price overrides the public tier price.
+  const price = customPrice != null ? customPrice : tier.pricePerInstall;
   const indEl = document.getElementById('tierIndicator');
   const calcEl = document.getElementById('topupCalc');
 
-  // Highlight active tier card
+  // Highlight active tier card (public tiers only — none for custom users)
   document.querySelectorAll('.tier-card').forEach(el => {
     el.style.background = '';
     el.style.outline = '';
   });
-  const activeCard = document.getElementById('tier-' + tier.id);
-  if (activeCard) {
-    activeCard.style.background = 'var(--jade-soft)';
-    activeCard.style.outline = '1px solid var(--jade)';
+  if (customPrice == null) {
+    const activeCard = document.getElementById('tier-' + tier.id);
+    if (activeCard) {
+      activeCard.style.background = 'var(--jade-soft)';
+      activeCard.style.outline = '1px solid var(--jade)';
+    }
   }
-  if (indEl) indEl.textContent = '— тариф: ' + tier.name;
+  if (indEl) indEl.textContent = customPrice != null
+    ? ('— ваш тариф: $' + customPrice.toFixed(2))
+    : ('— тариф: ' + tier.name);
   if (calcEl) {
     if (amount <= 0) {
       calcEl.innerHTML = '<span style="color: var(--cinnabar);">Введите сумму</span>';
-    } else if (tier.pricePerInstall != null) {
-      const installs = Math.floor(amount / tier.pricePerInstall);
-      calcEl.innerHTML = `На&nbsp;${formatNum(amount)}&nbsp;USD получите примерно <b style="color:var(--jade)">${formatNum(installs)} установок</b> по&nbsp;тарифу «${tier.name}» ($${tier.pricePerInstall.toFixed(2)} за&nbsp;установку).`;
+    } else if (price != null) {
+      const installs = Math.floor(amount / price);
+      calcEl.innerHTML = customPrice != null
+        ? `На&nbsp;${formatNum(amount)}&nbsp;USD получите примерно <b style="color:var(--jade)">${formatNum(installs)} установок</b> по&nbsp;вашему тарифу ($${price.toFixed(2)} за&nbsp;установку).`
+        : `На&nbsp;${formatNum(amount)}&nbsp;USD получите примерно <b style="color:var(--jade)">${formatNum(installs)} установок</b> по&nbsp;тарифу «${tier.name}» ($${price.toFixed(2)} за&nbsp;установку).`;
     } else {
       calcEl.innerHTML = 'Цена за&nbsp;установку — индивидуально, обсуждается с&nbsp;менеджером.';
     }
@@ -1235,8 +1266,8 @@ function onTopupAmountChange() {
   // Crypto card live estimate
   const cryptoEst = document.getElementById('cryptoEstimate');
   if (cryptoEst) {
-    if (amount > 0 && tier.pricePerInstall != null) {
-      cryptoEst.textContent = `$${formatNum(amount)} ≈ ${formatNum(Math.floor(amount / tier.pricePerInstall))} установок`;
+    if (amount > 0 && price != null) {
+      cryptoEst.textContent = `$${formatNum(amount)} ≈ ${formatNum(Math.floor(amount / price))} установок`;
     } else {
       cryptoEst.textContent = '';
     }
