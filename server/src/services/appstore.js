@@ -160,6 +160,9 @@ export async function fetchKeywordHistory(_appleId, _keywords, _country = 'us', 
 }
 
 export const appStore = {
+  key: 'appstore',
+  label: 'App Store',
+  parseId: parseAppleAppId,
   isConfigured,
   fetchAppMetadata,
   fetchAppsMetadata,

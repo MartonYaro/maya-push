@@ -94,6 +94,7 @@ addColumnIfMissing('apps', 'rating', 'REAL');
 addColumnIfMissing('apps', 'rating_count', 'INTEGER');
 addColumnIfMissing('apps', 'developer', 'TEXT');
 addColumnIfMissing('apps', 'subtitle', 'TEXT');
+addColumnIfMissing('apps', 'store', "TEXT NOT NULL DEFAULT 'appstore'");   // 'appstore' | 'googleplay'
 addColumnIfMissing('keywords', 'frequency', 'INTEGER');
 addColumnIfMissing('keywords', 'popularity', 'INTEGER');
 

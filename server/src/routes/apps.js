@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { db, now } from '../db.js';
 import { requireAuth, requireVerified } from '../middleware/auth.js';
-import { appStore, parseAppleAppId } from '../services/appstore.js';
+import { appStore } from '../services/appstore.js';
+import { storeFor, detectStore } from '../services/stores.js';
 import { LIMITS } from '../config/limits.js';
 
 const router = Router();
@@ -23,8 +24,11 @@ router.get('/', (req, res) => {
  */
 router.post('/', async (req, res) => {
   const { url, store_id, country = 'us', keywords = [] } = req.body || {};
-  const appleId = parseAppleAppId(store_id || url);
-  if (!appleId) return res.status(400).json({ error: 'invalid_app_id' });
+  const input = store_id || url;
+  const storeKey = detectStore(input);
+  const store = storeFor(storeKey);
+  const appExtId = store.parseId(input);
+  if (!appExtId) return res.status(400).json({ error: 'invalid_app_id' });
 
   // Per-user app limit
   const appsCount = db.prepare('SELECT COUNT(*) AS n FROM apps WHERE user_id = ?').get(req.user.id).n;
@@ -36,20 +40,20 @@ router.post('/', async (req, res) => {
     });
   }
 
-  const meta = await appStore.fetchAppMetadata(appleId, country).catch(() => null);
+  const meta = await store.fetchAppMetadata(appExtId, country).catch(() => null);
   if (!meta) {
     return res.status(404).json({
       error: 'app_not_found',
-      hint: 'Проверьте ссылку на приложение и страну App Store',
+      hint: `Проверьте ссылку на приложение и страну (${store.label})`,
     });
   }
 
   const info = db.prepare(
-    `INSERT INTO apps (user_id, store_id, bundle_id, name, icon_url, category, country, url,
+    `INSERT INTO apps (user_id, store, store_id, bundle_id, name, icon_url, category, country, url,
                        rating, rating_count, developer, subtitle, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
-    req.user.id, meta.store_id, meta.bundle_id, meta.name, meta.icon_url, meta.category,
+    req.user.id, storeKey, meta.store_id, meta.bundle_id, meta.name, meta.icon_url, meta.category,
     country, url || null, meta.rating, meta.rating_count, meta.developer, meta.subtitle, now()
   );
   const appId = info.lastInsertRowid;
@@ -63,7 +67,7 @@ router.post('/', async (req, res) => {
   let ranksMap = {};
   if (cleanKeywords.length) {
     // Live ranks parsed straight from App Store search results.
-    ranksMap = await appStore.fetchKeywordPositionsBulk(meta.store_id, cleanKeywords, country)
+    ranksMap = await store.fetchKeywordPositionsBulk(meta.store_id, cleanKeywords, country)
       .catch(() => ({}));
     const insKw = db.prepare(
       `INSERT INTO keywords (app_id, term, country, target_pos, created_at, current_pos, last_checked_at)
@@ -132,10 +136,11 @@ router.post('/:id/sync', async (req, res) => {
   const app = db.prepare('SELECT * FROM apps WHERE id = ? AND user_id = ?')
     .get(req.params.id, req.user.id);
   if (!app) return res.status(404).json({ error: 'not_found' });
+  const store = storeFor(app.store);
 
   // metadata refresh
   if (app.store_id) {
-    const meta = await appStore.fetchAppMetadata(app.store_id, app.country).catch(() => null);
+    const meta = await store.fetchAppMetadata(app.store_id, app.country).catch(() => null);
     if (meta) {
       db.prepare(
         `UPDATE apps SET name=COALESCE(?,name), icon_url=COALESCE(?,icon_url),
@@ -151,7 +156,7 @@ router.post('/:id/sync', async (req, res) => {
   const kws = db.prepare(`SELECT id, term FROM keywords WHERE app_id = ? AND status='active'`).all(app.id);
   let updated = 0;
   if (kws.length && app.store_id) {
-    const ranks = await appStore.fetchKeywordPositionsBulk(app.store_id, kws.map(k => k.term), app.country)
+    const ranks = await store.fetchKeywordPositionsBulk(app.store_id, kws.map(k => k.term), app.country)
       .catch(() => ({}));
     const ts = now();
     const insPos = db.prepare(`INSERT INTO keyword_positions (keyword_id, position, checked_at, source) VALUES (?, ?, ?, 'store')`);

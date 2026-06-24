@@ -6,7 +6,7 @@
  * and broadcast SSE.
  */
 import { db, now } from '../db.js';
-import { appStore } from './appstore.js';
+import { storeFor } from './stores.js';
 import { broadcast } from '../sse.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -26,7 +26,7 @@ function pickSimulatedPosition(prev, target) {
 export async function runPositionTick({ logger = console } = {}) {
   // Group active keywords by app (and country).
   const groups = db.prepare(`
-    SELECT a.id AS app_id, a.user_id, a.store_id, a.country, a.status AS app_status
+    SELECT a.id AS app_id, a.user_id, a.store_id, a.store, a.country, a.status AS app_status
     FROM apps a
     WHERE a.status = 'active'
   `).all();
@@ -45,7 +45,7 @@ export async function runPositionTick({ logger = console } = {}) {
     let useReal = !!app.store_id;
     if (app.store_id) {
       try {
-        ranks = await appStore.fetchKeywordPositionsBulk(
+        ranks = await storeFor(app.store).fetchKeywordPositionsBulk(
           app.store_id, kws.map(k => k.term), app.country
         );
       } catch (e) {

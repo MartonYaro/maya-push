@@ -123,6 +123,7 @@ function mapApp(a, idx) {
     developer: a.developer || null,
     subtitle: a.subtitle || null,
     storeId: a.store_id || null,
+    store: a.store || 'appstore',
     keywords: [],
   };
 }
@@ -818,7 +819,7 @@ function renderApps() {
                   <div class="app-icon-sm" style="--ico-a: ${a.colorA}; --ico-b: ${a.colorB};">${escapeHtml(a.name.slice(0,1).toUpperCase())}</div>
                   <div class="app-cell-info">
                     <div class="app-cell-name">${escapeHtml(a.name)}</div>
-                    <div class="app-cell-meta">${escapeHtml(a.category)}</div>
+                    <div class="app-cell-meta">${storeBadge(a.store)}${escapeHtml(a.category)}</div>
                   </div>
                 </div></td>
                 <td class="mono">${geoLabelHtml(a.country)}</td>
@@ -2627,6 +2628,12 @@ function statusPill(status) {
   const map = { active: ['active', 'Активна'], paused: ['paused', 'Пауза'], done: ['done', 'Готово'], pending: ['pending', 'Ожидает'], scheduled: ['pending', 'Запланировано'] };
   const [cls, label] = map[status] || ['done', status || '—'];
   return `<span class="status-pill ${cls}">${label}</span>`;
+}
+function storeBadge(store) {
+  const gp = store === 'googleplay';
+  const label = gp ? 'Google Play' : 'App Store';
+  const color = gp ? '#5cc26a' : '#3aff9f';
+  return `<span style="display:inline-block; font-size:10px; font-weight:600; padding:1px 6px; border-radius:5px; border:1px solid ${color}55; color:${color}; margin-right:6px; vertical-align:1px;">${label}</span>`;
 }
 function txTypeLabel(t) { return ({ topup: 'Пополнение', spend: 'Списание', system: 'Система' })[t] || t; }
 function openModal(id) { document.getElementById(id).classList.add('show'); }
