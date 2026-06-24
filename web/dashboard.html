@@ -114,6 +114,16 @@
     color: var(--jade);
     filter: drop-shadow(0 0 6px var(--jade-glow));
   }
+  .sb-lang {
+    margin-left: auto; display: inline-flex; border: 1px solid var(--line); overflow: hidden; border-radius: 6px;
+  }
+  .sb-lang button {
+    background: transparent; color: var(--ink-3); border: 0; cursor: pointer;
+    padding: 4px 8px; font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+    transition: all .15s;
+  }
+  .sb-lang button:hover { color: var(--ink); }
+  .sb-lang button.active { background: var(--jade); color: var(--bg); }
   .sb-logo .light {
     font-weight: 400;
     color: var(--ink-2);
@@ -1869,6 +1879,10 @@
       <svg viewBox="0 0 32 32"><use href="#logo-pyr"/></svg>
       <span>Maya</span>
       <span class="light">Push</span>
+      <div class="sb-lang">
+        <button type="button" data-lang-btn="ru" onclick="MayaI18n.set('ru')">RU</button>
+        <button type="button" data-lang-btn="en" onclick="MayaI18n.set('en')">EN</button>
+      </div>
     </div>
 
     <div class="sb-section">Главное</div>
@@ -2081,5 +2095,6 @@
 <script src="https://telegram.org/js/telegram-widget.js?22" async defer></script>
 <script src="/js/api.js"></script>
 <script src="/js/app.js"></script>
+<script src="/js/i18n.js"></script>
 </body>
 </html>

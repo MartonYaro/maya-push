@@ -291,6 +291,7 @@ async function initSocialAuth() {
         google.accounts.id.renderButton(gw, {
           theme: 'filled_black', size: 'large', shape: 'rectangular',
           text: 'continue_with', logo_alignment: 'center', width: w,
+          locale: (localStorage.getItem('mayaLang') === 'en' ? 'en' : 'ru'),
         });
       } else if (tries++ < 40) {
         setTimeout(renderGoogle, 150);
