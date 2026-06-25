@@ -2168,11 +2168,11 @@ function paintScheduler() {
       </div>
       <div class="ss-c">
         <div class="ss-lbl">Стоимость</div>
-        <div class="ss-val ${totalCost > data.balance ? 'red' : 'green'}" id="ssCost">$${formatNum(totalCost)}</div>
+        <div class="ss-val ${totalCost > data.balance ? 'red' : 'green'}" id="ssCost">$${fmtMoney(totalCost)}</div>
       </div>
       <div class="ss-c">
         <div class="ss-lbl">Баланс после</div>
-        <div class="ss-val ${(data.balance - totalCost) < 0 ? 'red' : ''}" id="ssBalance">$${formatNum(Math.max(0, data.balance - totalCost))}</div>
+        <div class="ss-val ${(data.balance - totalCost) < 0 ? 'red' : ''}" id="ssBalance">$${fmtMoney(Math.max(0, data.balance - totalCost))}</div>
       </div>
     </div>
   `;
@@ -2185,9 +2185,9 @@ function paintScheduler() {
   } else if (totalNew === 0) {
     submit.textContent = 'Укажи количество';
   } else {
-    submit.textContent = `Запланировать на $${formatNum(totalCost)}`;
+    submit.textContent = `Запланировать на $${fmtMoney(totalCost)}`;
   }
-  document.getElementById('installsCost').textContent = `$${price.toFixed(2)} × ${formatNum(totalNew)} = $${formatNum(totalCost)}`;
+  document.getElementById('installsCost').textContent = `$${price.toFixed(2)} × ${formatNum(totalNew)} = $${fmtMoney(totalCost)}`;
 }
 
 function schedDayChange(date, value) {
@@ -2211,18 +2211,18 @@ function updateSchedSummary() {
   const elCost = document.getElementById('ssCost');
   const elBal = document.getElementById('ssBalance');
   if (elTotal) elTotal.textContent = formatNum(totalNew);
-  if (elCost) { elCost.textContent = `$${formatNum(totalCost)}`; elCost.className = 'ss-val ' + (totalCost > data.balance ? 'red' : 'green'); }
-  if (elBal) { elBal.textContent = `$${formatNum(Math.max(0, data.balance - totalCost))}`; elBal.className = 'ss-val ' + ((data.balance - totalCost) < 0 ? 'red' : ''); }
+  if (elCost) { elCost.textContent = `$${fmtMoney(totalCost)}`; elCost.className = 'ss-val ' + (totalCost > data.balance ? 'red' : 'green'); }
+  if (elBal) { elBal.textContent = `$${fmtMoney(Math.max(0, data.balance - totalCost))}`; elBal.className = 'ss-val ' + ((data.balance - totalCost) < 0 ? 'red' : ''); }
 
   const submit = document.getElementById('installsSubmit');
   if (submit) {
     submit.disabled = totalNew === 0 || totalCost > data.balance;
     submit.textContent = totalCost > data.balance ? 'Недостаточно баланса'
       : totalNew === 0 ? 'Укажи количество'
-      : `Запланировать на $${formatNum(totalCost)}`;
+      : `Запланировать на $${fmtMoney(totalCost)}`;
   }
   const costEl = document.getElementById('installsCost');
-  if (costEl) costEl.textContent = `$${price.toFixed(2)} × ${formatNum(totalNew)} = $${formatNum(totalCost)}`;
+  if (costEl) costEl.textContent = `$${price.toFixed(2)} × ${formatNum(totalNew)} = $${fmtMoney(totalCost)}`;
 }
 
 function schedFill(count) {
@@ -2652,6 +2652,14 @@ async function submitCryptoTopup() {
    ═══════════════════════════════════════════════════ */
 
 function formatNum(n) { return Math.round(n || 0).toLocaleString('en-US').replace(/,/g, ' '); }
+// Money: whole numbers stay clean ($20), fractional show cents ($0.30, $19.70).
+function fmtMoney(n) {
+  const v = Number(n || 0);
+  if (Number.isInteger(v)) return formatNum(v);
+  return (Math.round(v * 100) / 100)
+    .toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    .replace(/,/g, ' ');
+}
 function formatDate(ts) {
   const d = new Date(ts);
   return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' +
