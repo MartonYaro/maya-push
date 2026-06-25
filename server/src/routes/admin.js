@@ -137,8 +137,8 @@ router.get('/finance', (req, res) => {
     LEFT JOIN keywords k ON k.app_id = a.id
     LEFT JOIN installs i ON i.keyword_id = k.id ${dateOn}
     GROUP BY u.id
-    HAVING deposited > 0 OR delivered > 0 OR sold > 0
-    ORDER BY revenue DESC
+    HAVING deposited > 0
+    ORDER BY sold DESC, deposited DESC
   `).all(...params);
 
   const totals = clients.reduce((t, c) => ({

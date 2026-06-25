@@ -300,7 +300,7 @@ function renderFinance() {
   const rows = (_finance.clients || []).filter(c => c.delivered > 0 || c.sold > 0 || c.deposited > 0);
   if (!rows.length) { $('finTable').innerHTML = '<div class="empty">Нет данных за период</div>'; return; }
   $('finTable').innerHTML = `<table>
-    <thead><tr><th>Клиент</th><th>Пополнено</th><th>Заказано</th><th>Доставлено</th><th>Выручка</th><th>Себест.</th><th>Прибыль</th><th>Маржа</th><th>Ø цена</th></tr></thead>
+    <thead><tr><th>Клиент</th><th>Пополнено</th><th>Заказано</th><th>Доставлено</th><th>Выручка</th><th>Себест.</th><th>Прибыль</th><th>Маржа</th><th>Ø цена</th><th></th></tr></thead>
     <tbody>${rows.map(c => {
       const cg = c.ordered * cost;
       const pr = c.sold - cg;
@@ -316,9 +316,19 @@ function renderFinance() {
         <td class="mono" style="color:${pr >= 0 ? 'var(--jade)' : 'var(--cinnabar,#e5484d)'}">${fmtMoney(pr)}</td>
         <td class="mono">${mg.toFixed(1)}%</td>
         <td class="mono">$${avg.toFixed(2)}</td>
+        <td><button class="btn sm danger" title="Удалить клиента и все его данные" onclick="finDeleteUser(${c.id}, '${esc(c.email)}')">✕</button></td>
       </tr>`;
     }).join('')}</tbody>
   </table>`;
+}
+
+async function finDeleteUser(id, email) {
+  if (!confirm('Удалить клиента ' + email + '?\n\nБудут стёрты его приложения, ключи, заказы и транзакции. Необратимо.')) return;
+  try {
+    await adminFetch('/api/admin/users/' + id, { method: 'DELETE' });
+    loadFinance();
+    refresh();
+  } catch (e) { alert('Ошибка: ' + e.message); }
 }
 
 async function login() {
