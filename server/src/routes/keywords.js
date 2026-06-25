@@ -6,11 +6,10 @@ import { notifyAdmin, tgInstallOrder, tgInstallCancelled } from '../services/tel
 import { audit } from '../services/audit.js';
 import { LIMITS } from '../config/limits.js';
 import { maybeEmailLowBalance } from '../services/notifications.js';
+import { priceFor, installCost } from '../lib/pricing.js';
 
 const router = Router();
 router.use(requireAuth);
-
-const PRICE_PER_INSTALL = { standard: 0.30, volume: 0.20, scale: 0.12, fast: 0.55, premium: 0.85 };
 
 function ownsApp(userId, appId) {
   return db.prepare('SELECT id FROM apps WHERE id = ? AND user_id = ?').get(appId, userId);
@@ -182,10 +181,8 @@ router.post('/:id/installs', (req, res) => {
 
   // Admin can set a custom per-install price for a client; it overrides the plan price.
   const u = db.prepare('SELECT custom_install_price FROM users WHERE id = ?').get(req.user.id);
-  const price = (u && u.custom_install_price != null)
-    ? u.custom_install_price
-    : (PRICE_PER_INSTALL[kw.plan] || PRICE_PER_INSTALL.standard);
-  const cost = +(c * price).toFixed(2);
+  const price = priceFor({ plan: kw.plan, customPrice: u ? u.custom_install_price : null });
+  const cost = installCost(c, price);
 
   const balance = getBalance(req.user.id);
   if (cost > balance) return res.status(402).json({ error: 'insufficient_balance', balance });

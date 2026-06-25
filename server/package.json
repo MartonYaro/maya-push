@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "admin": "node scripts/admin.js"
+    "admin": "node scripts/admin.js",
+    "test": "node --test test/pricing.test.js test/boot.test.js",
+    "test:unit": "node --test test/pricing.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
