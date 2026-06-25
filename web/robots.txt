@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# Product app lives behind login — nothing useful for search there.
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /api/
+
+Sitemap: https://mayapush.com/sitemap.xml
