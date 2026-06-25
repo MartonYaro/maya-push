@@ -110,6 +110,52 @@ router.delete('/users/:id', (req, res) => {
   res.json({ ok: true, deleted: u.id });
 });
 
+/**
+ * Finance / P&L. Revenue is recognised on DELIVERED installs (pro-rated per
+ * order), cost-of-goods = delivered × supplier cost. Supplier cost is applied
+ * client-side so the admin can change it and recompute instantly; the server
+ * returns raw delivered/revenue per client + totals. Optional ?from&to filter
+ * by install date (YYYY-MM-DD).
+ */
+router.get('/finance', (req, res) => {
+  const from = req.query.from || null;
+  const to = req.query.to || null;
+  const useDate = !!(from || to);
+  const dateOn = useDate ? 'AND i.date BETWEEN ? AND ?' : '';
+  const params = useDate ? [from || '0000-00-00', to || '9999-12-31'] : [];
+
+  const clients = db.prepare(`
+    SELECT u.id, u.email, u.name,
+      COALESCE((SELECT SUM(amount) FROM transactions t
+                WHERE t.user_id = u.id AND t.status = 'done' AND t.type = 'topup' AND t.amount > 0), 0) AS deposited,
+      COALESCE(SUM(i.count), 0)     AS ordered,
+      COALESCE(SUM(i.delivered), 0) AS delivered,
+      COALESCE(SUM(i.cost), 0)      AS sold,
+      COALESCE(SUM((CAST(i.delivered AS REAL) / NULLIF(i.count, 0)) * i.cost), 0) AS revenue
+    FROM users u
+    LEFT JOIN apps a     ON a.user_id = u.id
+    LEFT JOIN keywords k ON k.app_id = a.id
+    LEFT JOIN installs i ON i.keyword_id = k.id ${dateOn}
+    GROUP BY u.id
+    HAVING deposited > 0 OR delivered > 0 OR sold > 0
+    ORDER BY revenue DESC
+  `).all(...params);
+
+  const totals = clients.reduce((t, c) => ({
+    deposited: t.deposited + c.deposited,
+    ordered: t.ordered + c.ordered,
+    delivered: t.delivered + c.delivered,
+    sold: t.sold + c.sold,
+    revenue: t.revenue + c.revenue,
+  }), { deposited: 0, ordered: 0, delivered: 0, sold: 0, revenue: 0 });
+
+  res.json({
+    clients,
+    totals,
+    supplierCost: Number(process.env.SUPPLIER_COST_PER_INSTALL) || 0.04,
+  });
+});
+
 router.get('/transactions', (req, res) => {
   const status = req.query.status || null;
   const sql = status

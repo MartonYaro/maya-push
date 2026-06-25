@@ -145,7 +145,25 @@
     <div class="tab active" data-panel="orders" onclick="switchTab('orders')">Заказы установок <span class="count" id="ordersScheduledCount">0</span></div>
     <div class="tab" data-panel="topups" onclick="switchTab('topups')">Пополнения <span class="count" id="pendingCount">0</span></div>
     <div class="tab" data-panel="users" onclick="switchTab('users')">Пользователи <span class="count" id="usersCount">0</span></div>
+    <div class="tab" data-panel="finance" onclick="switchTab('finance')">Финансы</div>
     <div class="tab" data-panel="tx" onclick="switchTab('tx')">Все транзакции</div>
+  </div>
+
+  <!-- FINANCE PANEL -->
+  <div class="panel" id="panel-finance">
+    <div class="card">
+      <h2><span>Финансы · P&amp;L</span></h2>
+      <div class="filters">
+        <label>себестоимость $/установка</label>
+        <input type="number" id="finCost" step="0.01" min="0" style="width:90px" value="0.04" oninput="renderFinance()">
+        <label>с</label><input type="date" id="finFrom" onchange="loadFinance()">
+        <label>по</label><input type="date" id="finTo" onchange="loadFinance()">
+        <span style="flex:1"></span>
+        <button class="btn" onclick="loadFinance()">↻ Обновить</button>
+      </div>
+      <div class="stat-row" id="finKpis"></div>
+      <div id="finTable" style="margin-top:18px"></div>
+    </div>
   </div>
 
   <!-- ORDERS PANEL -->
@@ -243,6 +261,63 @@ const adminFetch = (path, opts = {}) => fetch(path, {
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.panel === name));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+  if (name === 'finance') loadFinance();
+}
+
+let _finance = null;
+async function loadFinance() {
+  const from = $('finFrom').value, to = $('finTo').value;
+  const qs = new URLSearchParams();
+  if (from) qs.set('from', from);
+  if (to) qs.set('to', to);
+  try {
+    _finance = await adminFetch('/api/admin/finance?' + qs.toString());
+    if ($('finCost') && (!$('finCost').value || $('finCost').dataset.touched !== '1')) {
+      $('finCost').value = _finance.supplierCost;
+    }
+    renderFinance();
+  } catch (e) { $('finTable').innerHTML = '<div class="empty">Ошибка: ' + e.message + '</div>'; }
+}
+
+function renderFinance() {
+  if (!_finance) return;
+  if ($('finCost')) $('finCost').dataset.touched = '1';
+  const cost = parseFloat($('finCost').value) || 0;
+  const t = _finance.totals;
+  const cogs = t.delivered * cost;
+  const profit = t.revenue - cogs;
+  const margin = t.revenue > 0 ? (profit / t.revenue * 100) : 0;
+
+  $('finKpis').innerHTML = `
+    <div class="stat"><div class="stat-label">Выручка (доставлено)</div><div class="stat-value">${fmtMoney(t.revenue)}</div></div>
+    <div class="stat"><div class="stat-label">Себестоимость</div><div class="stat-value" style="color:var(--ink-2)">${fmtMoney(cogs)}</div></div>
+    <div class="stat"><div class="stat-label">Прибыль</div><div class="stat-value" style="color:${profit >= 0 ? 'var(--jade)' : 'var(--cinnabar,#e5484d)'}">${fmtMoney(profit)}</div></div>
+    <div class="stat"><div class="stat-label">Маржа</div><div class="stat-value" style="color:${margin >= 0 ? 'var(--jade)' : 'var(--cinnabar,#e5484d)'}">${margin.toFixed(1)}%</div></div>
+    <div class="stat"><div class="stat-label">Установок доставлено</div><div class="stat-value">${fmtInt(t.delivered)}</div></div>
+    <div class="stat"><div class="stat-label">Пополнено (всего)</div><div class="stat-value">${fmtMoney(t.deposited)}</div></div>`;
+
+  const rows = (_finance.clients || []).filter(c => c.delivered > 0 || c.sold > 0 || c.deposited > 0);
+  if (!rows.length) { $('finTable').innerHTML = '<div class="empty">Нет данных за период</div>'; return; }
+  $('finTable').innerHTML = `<table>
+    <thead><tr><th>Клиент</th><th>Пополнено</th><th>Заказано</th><th>Доставлено</th><th>Выручка</th><th>Себест.</th><th>Прибыль</th><th>Маржа</th><th>Ø цена</th></tr></thead>
+    <tbody>${rows.map(c => {
+      const cg = c.delivered * cost;
+      const pr = c.revenue - cg;
+      const mg = c.revenue > 0 ? (pr / c.revenue * 100) : 0;
+      const avg = c.delivered > 0 ? c.revenue / c.delivered : 0;
+      return `<tr>
+        <td><div>${esc(c.name || '')}</div><div style="color:var(--ink-3);font-size:11px">${esc(c.email)}</div></td>
+        <td class="mono">${fmtMoney(c.deposited)}</td>
+        <td class="mono">${fmtInt(c.ordered)}</td>
+        <td class="mono">${fmtInt(c.delivered)}</td>
+        <td class="mono pos">${fmtMoney(c.revenue)}</td>
+        <td class="mono" style="color:var(--ink-2)">${fmtMoney(cg)}</td>
+        <td class="mono" style="color:${pr >= 0 ? 'var(--jade)' : 'var(--cinnabar,#e5484d)'}">${fmtMoney(pr)}</td>
+        <td class="mono">${mg.toFixed(1)}%</td>
+        <td class="mono">$${avg.toFixed(2)}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
 }
 
 async function login() {
