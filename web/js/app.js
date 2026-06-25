@@ -235,6 +235,12 @@ function authErrorMessage(err) {
   return AUTH_ERRORS[err.message] || ('Ошибка: ' + err.message);
 }
 
+/* EN-mode helpers for JS-built strings that interpolate dynamic values
+   (counts, amounts, tier names) and so can't be translated as whole text
+   nodes by the [data-en]-style walker. */
+const enMode = () => !!(window.MayaI18n && MayaI18n.lang === 'en');
+const tr = (s) => (window.MayaI18n ? MayaI18n.t(s) : s);
+
 async function handleAuth(e) {
   e.preventDefault();
   const email = document.getElementById('authEmail').value.trim().toLowerCase();
@@ -856,7 +862,7 @@ function renderObservations() {
     <div class="page">
       <div class="page-header">
         <div>
-          <div class="page-subtitle">/ Мониторинг ранков · ${rows.length} запросов</div>
+          <div class="page-subtitle">${enMode() ? `/ Rank monitoring · ${rows.length} queries` : `/ Мониторинг ранков · ${rows.length} запросов`}</div>
           <div class="page-title">Наблюдения <span class="accent">за позициями</span></div>
         </div>
         <button class="btn btn-ghost" onclick="goPage('apps')">К приложениям</button>
@@ -949,7 +955,7 @@ function renderCampaigns() {
     <div class="page">
       <div class="page-header">
         <div>
-          <div class="page-subtitle">/ Активные пуши установок · ${rows.length}</div>
+          <div class="page-subtitle">${enMode() ? `/ Active install pushes · ${rows.length}` : `/ Активные пуши установок · ${rows.length}`}</div>
           <div class="page-title">Мои <span class="accent">кампании</span></div>
         </div>
         <button class="btn btn-primary" onclick="goPage('apps')">+ Запустить кампанию</button>
@@ -1251,16 +1257,22 @@ function onTopupAmountChange() {
     }
   }
   if (indEl) indEl.textContent = customPrice != null
-    ? ('— ваш тариф: $' + customPrice.toFixed(2))
-    : ('— тариф: ' + tier.name);
+    ? (enMode() ? '— your rate: $' + customPrice.toFixed(2) : '— ваш тариф: $' + customPrice.toFixed(2))
+    : (enMode() ? '— plan: ' + tr(tier.name) : '— тариф: ' + tier.name);
   if (calcEl) {
     if (amount <= 0) {
       calcEl.innerHTML = '<span style="color: var(--cinnabar);">Введите сумму</span>';
     } else if (price != null) {
       const installs = Math.floor(amount / price);
-      calcEl.innerHTML = customPrice != null
-        ? `На&nbsp;${formatNum(amount)}&nbsp;USD получите примерно <b style="color:var(--jade)">${formatNum(installs)} установок</b> по&nbsp;вашему тарифу ($${price.toFixed(2)} за&nbsp;установку).`
-        : `На&nbsp;${formatNum(amount)}&nbsp;USD получите примерно <b style="color:var(--jade)">${formatNum(installs)} установок</b> по&nbsp;тарифу «${tier.name}» ($${price.toFixed(2)} за&nbsp;установку).`;
+      if (enMode()) {
+        calcEl.innerHTML = customPrice != null
+          ? `${formatNum(amount)}&nbsp;USD gets you about <b style="color:var(--jade)">${formatNum(installs)} installs</b> at your rate ($${price.toFixed(2)} per&nbsp;install).`
+          : `${formatNum(amount)}&nbsp;USD gets you about <b style="color:var(--jade)">${formatNum(installs)} installs</b> on the «${tr(tier.name)}» plan ($${price.toFixed(2)} per&nbsp;install).`;
+      } else {
+        calcEl.innerHTML = customPrice != null
+          ? `На&nbsp;${formatNum(amount)}&nbsp;USD получите примерно <b style="color:var(--jade)">${formatNum(installs)} установок</b> по&nbsp;вашему тарифу ($${price.toFixed(2)} за&nbsp;установку).`
+          : `На&nbsp;${formatNum(amount)}&nbsp;USD получите примерно <b style="color:var(--jade)">${formatNum(installs)} установок</b> по&nbsp;тарифу «${tier.name}» ($${price.toFixed(2)} за&nbsp;установку).`;
+      }
     } else {
       calcEl.innerHTML = 'Цена за&nbsp;установку — индивидуально, обсуждается с&nbsp;менеджером.';
     }
@@ -1269,7 +1281,7 @@ function onTopupAmountChange() {
   const cryptoEst = document.getElementById('cryptoEstimate');
   if (cryptoEst) {
     if (amount > 0 && price != null) {
-      cryptoEst.textContent = `$${formatNum(amount)} ≈ ${formatNum(Math.floor(amount / price))} установок`;
+      cryptoEst.textContent = `$${formatNum(amount)} ≈ ${formatNum(Math.floor(amount / price))} ${enMode() ? 'installs' : 'установок'}`;
     } else {
       cryptoEst.textContent = '';
     }
@@ -1636,7 +1648,9 @@ async function loadReferrals() {
     const r = await API.getReferrals();
     const link = document.getElementById('refLink'); if (link) link.value = r.link || '';
     const cl = document.getElementById('refCodeLine');
-    if (cl) cl.textContent = 'Код: ' + (r.code || '—') + ' · ставка ' + Math.round((r.rate || 0) * 100) + '% от установок реферала';
+    if (cl) cl.textContent = enMode()
+      ? 'Code: ' + (r.code || '—') + ' · ' + Math.round((r.rate || 0) * 100) + '% rate on referral installs'
+      : 'Код: ' + (r.code || '—') + ' · ставка ' + Math.round((r.rate || 0) * 100) + '% от установок реферала';
     const stats = document.getElementById('refStats');
     if (stats) stats.innerHTML = `
       <div class="stat-c"><div class="stat-c-lbl">Ставка</div><div class="stat-c-val"><span class="accent">${Math.round((r.rate || 0) * 100)}%</span></div><div class="stat-c-sub">по вашему тарифу</div></div>
