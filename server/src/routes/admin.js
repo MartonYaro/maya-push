@@ -277,8 +277,22 @@ router.get('/orders', (req, res) => {
   res.json({ orders: rows });
 });
 
-/** CSV export for the supplier sheet — clean, human-readable, store-aware.
- *  ?status optional: scheduled | in_progress | … ; empty/"all" = every status.
+const COUNTRY_NAMES = {
+  us: 'USA', gb: 'United Kingdom', uk: 'United Kingdom', ca: 'Canada', au: 'Australia',
+  de: 'Germany', fr: 'France', it: 'Italy', es: 'Spain', nl: 'Netherlands', se: 'Sweden',
+  no: 'Norway', fi: 'Finland', dk: 'Denmark', ie: 'Ireland', be: 'Belgium', ch: 'Switzerland',
+  at: 'Austria', pt: 'Portugal', pl: 'Poland', cz: 'Czechia', ua: 'Ukraine', ru: 'Russia',
+  tr: 'Turkey', br: 'Brazil', mx: 'Mexico', ar: 'Argentina', cl: 'Chile', co: 'Colombia',
+  in: 'India', jp: 'Japan', kr: 'South Korea', cn: 'China', sg: 'Singapore', nz: 'New Zealand',
+  sa: 'Saudi Arabia', ae: 'UAE', za: 'South Africa', id: 'Indonesia', my: 'Malaysia',
+  vn: 'Vietnam', th: 'Thailand', ph: 'Philippines', hk: 'Hong Kong', tw: 'Taiwan',
+};
+const countryName = (c) => COUNTRY_NAMES[String(c || '').toLowerCase()] || String(c || '').toUpperCase();
+const ddmmyyyy = (d) => { const [y, m, da] = String(d).split('-'); return `${da}.${m}.${y}`; };
+
+/** CSV export in the supplier's matrix format:
+ *  rows = app → country → keyword, columns = dates, cells = install count.
+ *  Top: supported countries, date row, daily totals. ?status optional.
  */
 router.get('/orders.csv', (req, res) => {
   const status = req.query.status && req.query.status !== 'all' ? req.query.status : null;
@@ -291,34 +305,71 @@ router.get('/orders.csv', (req, res) => {
   if (toDate)   { where.push('i.date <= ?');  args.push(toDate); }
 
   const rows = db.prepare(`
-    SELECT i.id, i.date, i.count, i.delivered, i.status,
-           k.term AS keyword, k.plan,
-           a.url AS app_url, a.store_id, a.store, a.country, a.name AS app_name
+    SELECT i.date, i.count, k.term AS keyword,
+           a.url AS app_url, a.name AS app_name, a.store, a.country
     FROM installs i
     JOIN keywords k ON k.id = i.keyword_id
     JOIN apps a     ON a.id = k.app_id
     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-    ORDER BY i.date ASC, a.store ASC, a.country ASC, k.term ASC
+    ORDER BY a.name ASC, a.country ASC, k.term ASC, i.date ASC
   `).all(...args);
 
+  // Build the continuous date axis (min→max), capped to avoid runaway width.
+  const present = [...new Set(rows.map(r => r.date))].filter(Boolean).sort();
+  let dates = present;
+  if (present.length) {
+    const span = (new Date(present[present.length - 1]) - new Date(present[0])) / 86400000;
+    if (span <= 92) {
+      dates = [];
+      const cur = new Date(present[0] + 'T00:00:00Z');
+      const end = new Date(present[present.length - 1] + 'T00:00:00Z');
+      while (cur <= end) { dates.push(cur.toISOString().slice(0, 10)); cur.setUTCDate(cur.getUTCDate() + 1); }
+    }
+  }
+
+  // Pivot: app(url) → country → keyword → { date: count }, plus per-day totals.
+  const apps = new Map();
+  const dayTotal = {};
+  for (const r of rows) {
+    const key = r.app_url || r.app_name || '—';
+    if (!apps.has(key)) apps.set(key, { label: r.app_url || r.app_name, name: r.app_name, store: r.store, countries: new Map() });
+    const app = apps.get(key);
+    if (!app.countries.has(r.country || '')) app.countries.set(r.country || '', new Map());
+    const kwMap = app.countries.get(r.country || '');
+    if (!kwMap.has(r.keyword)) kwMap.set(r.keyword, {});
+    kwMap.get(r.keyword)[r.date] = (kwMap.get(r.keyword)[r.date] || 0) + r.count;
+    dayTotal[r.date] = (dayTotal[r.date] || 0) + r.count;
+  }
+
   const csvCell = (v) => {
-    if (v == null) return '';
+    if (v == null || v === '') return '';
     const s = String(v);
     return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  const storeName = (s) => (s === 'googleplay' ? 'Google Play' : 'App Store');
+  const row = (cells) => cells.map(csvCell).join(',');
 
-  const header = ['#', 'Date', 'Store', 'App', 'App link', 'App ID', 'Country', 'Keyword', 'Installs', 'Delivered', 'Plan', 'Status'];
-  const lines = [header.join(',')];
-  for (const r of rows) {
-    lines.push([
-      r.id, r.date, storeName(r.store), r.app_name, r.app_url, r.store_id,
-      (r.country || '').toUpperCase(), r.keyword, r.count, r.delivered || 0, r.plan, r.status,
-    ].map(csvCell).join(','));
+  const allCountries = [...new Set(rows.map(r => r.country))].map(countryName).sort();
+  const lines = [];
+  lines.push(row(['Supported Countries: ' + allCountries.join(', ')]));
+  lines.push(row(['', ...dates.map(ddmmyyyy)]));
+  lines.push(row(['Σ / day', ...dates.map(d => dayTotal[d] || 0)]));
+  lines.push(row(['']));
+  for (const [, app] of [...apps].sort((a, b) => String(a[1].name).localeCompare(String(b[1].name)))) {
+    lines.push(row([app.label]));
+    const countries = [...app.countries].sort((a, b) => countryName(a[0]).localeCompare(countryName(b[0])));
+    for (const [cc, kwMap] of countries) {
+      lines.push(row([countryName(cc)]));
+      const kws = [...kwMap].sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+      for (const [term, dMap] of kws) {
+        lines.push(row([term, ...dates.map(d => dMap[d] || '')]));
+      }
+    }
+    lines.push(row(['']));
   }
+
   const csv = '﻿' + lines.join('\n');   // BOM for Excel
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="maya-orders-${status || 'all'}-${new Date().toISOString().slice(0,10)}.csv"`);
+  res.setHeader('Content-Disposition', `attachment; filename="maya-supplier-${status || 'all'}-${new Date().toISOString().slice(0, 10)}.csv"`);
   res.send(csv);
 });
 
