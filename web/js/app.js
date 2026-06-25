@@ -248,7 +248,7 @@ async function handleAuth(e) {
     if (currentAuthTab === 'register') {
       if (!name) return showAuthError('Укажите имя');
       if (!acceptTos) return showAuthError('Нужно принять условия использования');
-      res = await API.register({ email, password, name, accept_tos: true, hp_field: hp });
+      res = await API.register({ email, password, name, accept_tos: true, hp_field: hp, ref: localStorage.getItem('mayaRef') || '' });
       if (res.token === 'noop') return; // honeypot triggered, silent
     } else {
       res = await API.login(email, password);
@@ -596,9 +596,11 @@ async function routeFromHash() {
         topup: renderTopup,
         history: renderHistory,
         faq: renderFaq,
+        referrals: renderReferrals,
       };
       pageContent.innerHTML = (renderers[page] || renderDashboard)();
       if (page === 'topup') initTopup();
+      if (page === 'referrals') loadReferrals();
     }
   } catch (e) {
     console.error(e);
@@ -1593,6 +1595,68 @@ const FAQ_ITEMS = [
   ['Как отслеживаются позиции?', 'Парсим текущие позиции прямо из App Store и обновляем несколько раз в день. В разделе «Наблюдения» видна динамика по каждому ключу и гео.'],
   ['Зачем подтверждать email?', 'Подтверждение открывает полный функционал, включая трекинг объёма по ключам. После регистрации мы присылаем письмо со ссылкой — один клик, и аккаунт активен.'],
 ];
+
+function renderReferrals() {
+  return `
+    <div class="page">
+      <div class="page-header"><div>
+        <div class="page-subtitle">/ Реферальная программа</div>
+        <div class="page-title">Приглашай и <span class="accent">зарабатывай</span></div>
+      </div></div>
+
+      <div class="hint">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <div>
+          <b>Как это работает.</b> Делись своей ссылкой. Когда приглашённый откручивает установки, тебе на&nbsp;баланс капает <b style="color:var(--jade)">бонус</b> от&nbsp;их количества&nbsp;— и&nbsp;считается по&nbsp;<b>твоему</b> тарифу. Чем лучше твой тариф, тем приятнее бонус.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <label class="form-label">Твоя реферальная ссылка</label>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <input class="form-input" id="refLink" readonly value="загружаем…" style="flex:1; min-width:240px; font-family:'JetBrains Mono',monospace; font-size:13px;">
+            <button class="btn btn-primary" onclick="copyRefLink()">Скопировать</button>
+          </div>
+          <div class="form-help" id="refCodeLine"></div>
+        </div>
+      </div>
+
+      <div class="stat-grid" id="refStats"></div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-title">Приглашённые <span class="badge" id="refCount">0</span></div></div>
+        <div class="card-body dense"><div id="refList"></div></div>
+      </div>
+    </div>`;
+}
+
+async function loadReferrals() {
+  try {
+    const r = await API.getReferrals();
+    const link = document.getElementById('refLink'); if (link) link.value = r.link || '';
+    const cl = document.getElementById('refCodeLine');
+    if (cl) cl.textContent = 'Код: ' + (r.code || '—') + ' · ставка ' + Math.round((r.rate || 0) * 100) + '% от установок реферала';
+    const stats = document.getElementById('refStats');
+    if (stats) stats.innerHTML = `
+      <div class="stat-c"><div class="stat-c-lbl">Ставка</div><div class="stat-c-val"><span class="accent">${Math.round((r.rate || 0) * 100)}%</span></div><div class="stat-c-sub">по вашему тарифу</div></div>
+      <div class="stat-c"><div class="stat-c-lbl">Приглашено</div><div class="stat-c-val">${r.count}</div></div>
+      <div class="stat-c"><div class="stat-c-lbl">Заработано</div><div class="stat-c-val"><span class="accent">$${fmtMoney(r.earned)}</span></div><div class="stat-c-sub">зачислено на&nbsp;баланс</div></div>`;
+    const cnt = document.getElementById('refCount'); if (cnt) cnt.textContent = r.count;
+    const list = document.getElementById('refList');
+    if (list) list.innerHTML = (r.referrals && r.referrals.length)
+      ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Пользователь</th><th>Email</th><th>Дата</th></tr></thead><tbody>${r.referrals.map(x => `<tr><td>${escapeHtml(x.name || '')}</td><td class="mono">${escapeHtml(x.email)}</td><td class="mono">${formatDate(x.joined)}</td></tr>`).join('')}</tbody></table></div>`
+      : `<div class="empty"><div class="empty-title">Пока никого</div><div class="empty-text">Поделись ссылкой&nbsp;— приглашённые появятся здесь.</div></div>`;
+  } catch (e) { toast('Не удалось загрузить рефералов', 'error'); }
+}
+
+function copyRefLink() {
+  const link = document.getElementById('refLink');
+  if (!link || !link.value) return;
+  const done = () => toast('Ссылка скопирована');
+  if (navigator.clipboard) navigator.clipboard.writeText(link.value).then(done).catch(() => { link.select(); document.execCommand('copy'); done(); });
+  else { link.select(); document.execCommand('copy'); done(); }
+}
 
 function renderFaq() {
   return `
@@ -2727,7 +2791,19 @@ function applyHashTab() {
   }
 }
 
+// Capture a referral code from ?ref=CODE and remember it for signup.
+function captureRef() {
+  const m = (location.search || '').match(/[?&]ref=([A-Za-z0-9]+)/);
+  if (m) {
+    localStorage.setItem('mayaRef', m[1].toUpperCase());
+    // If arriving via a ref link, default to the register tab.
+    setAuthTab('register');
+    history.replaceState(null, '', location.pathname);
+  }
+}
+
 (async function init() {
+  captureRef();
   checkResetTokenInUrl();
   applyHashTab();
   if (API.isAuthed()) {

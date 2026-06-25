@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
-import { db, now, getBalance, maybePromoteAdmin } from '../db.js';
+import { db, now, getBalance, maybePromoteAdmin, makeRefCode } from '../db.js';
 import { signToken, requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { sendEmail, renderVerifyEmail, renderResetEmail, renderWelcomeEmail } from '../services/email.js';
@@ -60,6 +60,16 @@ router.post('/register',
     const exists = db.prepare('SELECT id FROM users WHERE email = ?').get(norm);
     if (exists) return res.status(409).json({ error: 'email_taken' });
 
+    // Referral: who invited this user + a code for them to invite others.
+    const refCode = String(req.body.ref || '').trim().toUpperCase().slice(0, 12);
+    let referredBy = null;
+    if (refCode) {
+      const ref = db.prepare('SELECT id FROM users WHERE ref_code = ?').get(refCode);
+      if (ref) referredBy = ref.id;
+    }
+    let myCode;
+    do { myCode = makeRefCode(); } while (db.prepare('SELECT 1 FROM users WHERE ref_code = ?').get(myCode));
+
     // Pilot mode: if there is no email service configured (or AUTH_AUTO_VERIFY=1),
     // we cannot send verification links — so don't lock users out. Accounts are
     // created already-verified. Strict verification turns on automatically once
@@ -69,8 +79,9 @@ router.post('/register',
 
     const hash = await bcrypt.hash(password, 10);
     const info = db.prepare(
-      `INSERT INTO users (email, password_hash, name, created_at, email_verified) VALUES (?, ?, ?, ?, ?)`
-    ).run(norm, hash, String(name).trim(), now(), autoVerify ? 1 : 0);
+      `INSERT INTO users (email, password_hash, name, created_at, email_verified, ref_code, referred_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(norm, hash, String(name).trim(), now(), autoVerify ? 1 : 0, myCode, referredBy);
 
     const user = { id: info.lastInsertRowid, email: norm, name: String(name).trim() };
 
@@ -167,10 +178,16 @@ function upsertSocialUser(req, { provider, googleId = null, telegramId = null, e
   }
 
   const finalEmail = email || `tg${telegramId}@telegram.local`;
+  let myCode;
+  do { myCode = makeRefCode(); } while (db.prepare('SELECT 1 FROM users WHERE ref_code = ?').get(myCode));
+  const refCode = String((req.body && req.body.ref) || '').trim().toUpperCase().slice(0, 12);
+  const referredBy = refCode
+    ? (db.prepare('SELECT id FROM users WHERE ref_code = ?').get(refCode)?.id || null)
+    : null;
   const info = db.prepare(
-    `INSERT INTO users (email, password_hash, name, created_at, email_verified, provider, google_id, telegram_id, avatar_url, telegram)
-     VALUES (?, '', ?, ?, 1, ?, ?, ?, ?, ?)`
-  ).run(finalEmail, name, now(), provider, googleId, telegramId, avatar, telegram);
+    `INSERT INTO users (email, password_hash, name, created_at, email_verified, provider, google_id, telegram_id, avatar_url, telegram, ref_code, referred_by)
+     VALUES (?, '', ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(finalEmail, name, now(), provider, googleId, telegramId, avatar, telegram, myCode, referredBy);
   const id = info.lastInsertRowid;
   db.prepare(
     `INSERT INTO transactions (user_id, type, amount, status, description, created_at)

@@ -120,6 +120,24 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_users_telegram ON users(telegram_id);`);
 addColumnIfMissing('users', 'blocked', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('users', 'custom_install_price', 'REAL');   // overrides plan price when set
 
+// Referral program (v0.6) — each user has a code; referred users earn the
+// referrer a % of delivered installs, valued at the REFERRER's own price.
+addColumnIfMissing('users', 'ref_code',    'TEXT');
+addColumnIfMissing('users', 'referred_by', 'INTEGER');
+addColumnIfMissing('users', 'ref_rate',    'REAL');   // per-user override; null = global default
+db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_refcode ON users(ref_code) WHERE ref_code IS NOT NULL;`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_users_referredby ON users(referred_by);`);
+// Backfill ref_code for any user that doesn't have one yet.
+(() => {
+  const rows = db.prepare('SELECT id FROM users WHERE ref_code IS NULL').all();
+  const set = db.prepare('UPDATE users SET ref_code = ? WHERE id = ?');
+  for (const r of rows) {
+    let code;
+    do { code = makeRefCode(); } while (db.prepare('SELECT 1 FROM users WHERE ref_code = ?').get(code));
+    set.run(code, r.id);
+  }
+})();
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS email_verifications (
   token       TEXT PRIMARY KEY,
@@ -193,3 +211,28 @@ export function getBalance(userId) {
 }
 
 export function now() { return Date.now(); }
+
+// Referral helpers ---------------------------------------------------------
+const REF_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous chars
+export function makeRefCode(len = 7) {
+  let s = '';
+  for (let i = 0; i < len; i++) s += REF_ALPHABET[Math.floor(Math.random() * REF_ALPHABET.length)];
+  return s;
+}
+
+export function totalDeposited(userId) {
+  return db.prepare(
+    `SELECT COALESCE(SUM(amount),0) AS s FROM transactions
+     WHERE user_id = ? AND status = 'done' AND type = 'topup' AND amount > 0`
+  ).get(userId).s || 0;
+}
+
+/** A user's effective per-install price: custom override, else volume tier. */
+export function userInstallPrice(userId) {
+  const u = db.prepare('SELECT custom_install_price FROM users WHERE id = ?').get(userId);
+  if (u && u.custom_install_price != null) return Number(u.custom_install_price);
+  const dep = totalDeposited(userId);
+  return dep >= 15000 ? 0.12 : dep >= 5000 ? 0.20 : 0.30;
+}
+
+export const REFERRAL_RATE = () => Number(process.env.REFERRAL_RATE) || 0.05;
