@@ -120,6 +120,14 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_users_telegram ON users(telegram_id);`);
 addColumnIfMissing('users', 'blocked', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('users', 'custom_install_price', 'REAL');   // overrides plan price when set
 
+// Referral code generator — defined before the backfill below uses it.
+const REF_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous chars
+export function makeRefCode(len = 7) {
+  let s = '';
+  for (let i = 0; i < len; i++) s += REF_ALPHABET[Math.floor(Math.random() * REF_ALPHABET.length)];
+  return s;
+}
+
 // Referral program (v0.6) — each user has a code; referred users earn the
 // referrer a % of delivered installs, valued at the REFERRER's own price.
 addColumnIfMissing('users', 'ref_code',    'TEXT');
@@ -213,13 +221,6 @@ export function getBalance(userId) {
 export function now() { return Date.now(); }
 
 // Referral helpers ---------------------------------------------------------
-const REF_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous chars
-export function makeRefCode(len = 7) {
-  let s = '';
-  for (let i = 0; i < len; i++) s += REF_ALPHABET[Math.floor(Math.random() * REF_ALPHABET.length)];
-  return s;
-}
-
 export function totalDeposited(userId) {
   return db.prepare(
     `SELECT COALESCE(SUM(amount),0) AS s FROM transactions
