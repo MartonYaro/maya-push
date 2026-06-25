@@ -49,9 +49,15 @@ router.get('/users/:id', (req, res) => {
   ).get(u.id).s;
   u.tariff = tierName(u.total_deposited);
   u.apps = db.prepare(`
-    SELECT a.id, a.name, a.country, a.status,
+    SELECT a.id, a.name, a.country, a.status, a.store, a.url,
       (SELECT COUNT(*) FROM keywords k WHERE k.app_id = a.id) AS keywords_count
     FROM apps a WHERE a.user_id = ? ORDER BY a.created_at DESC`).all(u.id);
+  for (const app of u.apps) {
+    app.keywords = db.prepare(
+      `SELECT term, current_pos, target_pos, status FROM keywords
+       WHERE app_id = ? ORDER BY (current_pos IS NULL), current_pos ASC LIMIT 50`
+    ).all(app.id);
+  }
   u.transactions = db.prepare(
     `SELECT id, type, amount, status, description, created_at FROM transactions WHERE user_id=? ORDER BY created_at DESC LIMIT 30`
   ).all(u.id);
@@ -271,44 +277,48 @@ router.get('/orders', (req, res) => {
   res.json({ orders: rows });
 });
 
-/** CSV export tailored for the supplier sheet.
- *  Columns: date, country, app_url, store_id, keyword, count, plan, order_id
+/** CSV export for the supplier sheet — clean, human-readable, store-aware.
+ *  ?status optional: scheduled | in_progress | … ; empty/"all" = every status.
  */
 router.get('/orders.csv', (req, res) => {
-  const status = req.query.status || 'scheduled';
+  const status = req.query.status && req.query.status !== 'all' ? req.query.status : null;
   const fromDate = req.query.from || null;
   const toDate   = req.query.to   || null;
-  const where = ['i.status = ?'];
-  const args = [status];
-  if (fromDate) { where.push('i.date >= ?'); args.push(fromDate); }
-  if (toDate)   { where.push('i.date <= ?'); args.push(toDate); }
+  const where = [];
+  const args = [];
+  if (status)   { where.push('i.status = ?'); args.push(status); }
+  if (fromDate) { where.push('i.date >= ?');  args.push(fromDate); }
+  if (toDate)   { where.push('i.date <= ?');  args.push(toDate); }
 
   const rows = db.prepare(`
-    SELECT i.id, i.date, i.count, k.term AS keyword, k.plan,
-           a.url AS app_url, a.store_id, a.country, a.name AS app_name
+    SELECT i.id, i.date, i.count, i.delivered, i.status,
+           k.term AS keyword, k.plan,
+           a.url AS app_url, a.store_id, a.store, a.country, a.name AS app_name
     FROM installs i
     JOIN keywords k ON k.id = i.keyword_id
     JOIN apps a     ON a.id = k.app_id
-    WHERE ${where.join(' AND ')}
-    ORDER BY i.date ASC, a.country ASC, k.term ASC
+    ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+    ORDER BY i.date ASC, a.store ASC, a.country ASC, k.term ASC
   `).all(...args);
 
-  function csvCell(v) {
+  const csvCell = (v) => {
     if (v == null) return '';
     const s = String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  }
-  const header = ['order_id','date','country','app_name','app_url','store_id','keyword','count','plan'];
+    return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const storeName = (s) => (s === 'googleplay' ? 'Google Play' : 'App Store');
+
+  const header = ['#', 'Date', 'Store', 'App', 'App link', 'App ID', 'Country', 'Keyword', 'Installs', 'Delivered', 'Plan', 'Status'];
   const lines = [header.join(',')];
   for (const r of rows) {
     lines.push([
-      r.id, r.date, (r.country || '').toUpperCase(), r.app_name,
-      r.app_url, r.store_id, r.keyword, r.count, r.plan,
+      r.id, r.date, storeName(r.store), r.app_name, r.app_url, r.store_id,
+      (r.country || '').toUpperCase(), r.keyword, r.count, r.delivered || 0, r.plan, r.status,
     ].map(csvCell).join(','));
   }
   const csv = '﻿' + lines.join('\n');   // BOM for Excel
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="maya-orders-${status}-${Date.now()}.csv"`);
+  res.setHeader('Content-Disposition', `attachment; filename="maya-orders-${status || 'all'}-${new Date().toISOString().slice(0,10)}.csv"`);
   res.send(csv);
 });
 

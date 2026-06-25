@@ -307,7 +307,10 @@ function renderFinance() {
       const mg = c.sold > 0 ? (pr / c.sold * 100) : 0;
       const avg = c.ordered > 0 ? c.sold / c.ordered : 0;
       return `<tr>
-        <td><div>${esc(c.name || '')}</div><div style="color:var(--ink-3);font-size:11px">${esc(c.email)}</div></td>
+        <td style="cursor:pointer" onclick="openUserDetail(${c.id})" title="Открыть карточку клиента">
+          <div style="color:var(--jade)">${esc(c.name || '')} →</div>
+          <div style="color:var(--ink-3);font-size:11px">${esc(c.email)}</div>
+        </td>
         <td class="mono">${fmtMoney(c.deposited)}</td>
         <td class="mono">${fmtInt(c.ordered)}</td>
         <td class="mono">${fmtInt(c.delivered)}</td>
@@ -528,23 +531,22 @@ function markPartial(id, total) {
 }
 
 async function exportOrdersCSV() {
-  const status = $('orderFilterStatus').value || 'scheduled';
+  // Empty filter = export ALL statuses (so you can pull in_progress / delivered too).
+  const status = $('orderFilterStatus').value || 'all';
   const from = $('orderFilterFrom').value;
   const to = $('orderFilterTo').value;
   const params = new URLSearchParams();
   params.set('status', status);
   if (from) params.set('from', from);
   if (to) params.set('to', to);
-  // Open in new tab — browser will download via Content-Disposition
   const url = '/api/admin/orders.csv?' + params.toString();
-  // Need to attach token via fetch + blob, since GET tab can't carry header.
   try {
     const res = await fetch(url, { headers: { Authorization: 'Bearer ' + MayaAPI.getToken() } });
     if (!res.ok) throw new Error('http_' + res.status);
     const blob = await res.blob();
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `maya-orders-${status}-${Date.now()}.csv`;
+    a.download = `maya-orders-${status}-${new Date().toISOString().slice(0,10)}.csv`;
     document.body.appendChild(a); a.click(); a.remove();
   } catch (e) { alert('Ошибка экспорта: ' + e.message); }
 }
@@ -686,8 +688,20 @@ function renderUserDetail(u) {
 
     <div class="ud-cols">
       <div>
-        <div class="ud-act-t">Приложения (${u.apps.length})</div>
-        ${u.apps.length ? u.apps.map(a => `<div class="ud-li">${esc(a.name)} <span class="mono" style="color:var(--ink-3)">· ${esc((a.country||'').toUpperCase())} · ${a.keywords_count} кл. · ${esc(a.status)}</span></div>`).join('') : '<div class="ud-li" style="color:var(--ink-3)">нет</div>'}
+        <div class="ud-act-t">Приложения · что пушит (${u.apps.length})</div>
+        ${u.apps.length ? u.apps.map(a => `
+          <div class="ud-li" style="display:block; padding:8px 0; border-bottom:1px solid var(--line)">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+              ${a.url ? `<a href="${esc(a.url)}" target="_blank" style="font-weight:600">${esc(a.name)} ↗</a>` : `<b>${esc(a.name)}</b>`}
+              <span style="font-size:10px; padding:1px 6px; border-radius:5px; border:1px solid ${a.store === 'googleplay' ? '#5cc26a' : 'var(--jade)'}55; color:${a.store === 'googleplay' ? '#5cc26a' : 'var(--jade)'}">${a.store === 'googleplay' ? 'Google Play' : 'App Store'}</span>
+              <span class="mono" style="color:var(--ink-3); font-size:11px">${esc((a.country||'').toUpperCase())} · ${a.keywords_count} кл. · ${esc(a.status)}</span>
+            </div>
+            ${(a.keywords && a.keywords.length) ? `<div style="margin-top:5px; display:flex; flex-wrap:wrap; gap:5px">${a.keywords.map(k => {
+              const pos = k.current_pos != null ? ('#' + k.current_pos) : '—';
+              const col = k.current_pos != null && k.current_pos <= 10 ? 'var(--jade)' : 'var(--ink-2)';
+              return `<span style="font-size:11px; padding:2px 7px; border-radius:6px; background:var(--bg-3,#181614)"><span style="color:var(--ink-2)">${esc(k.term)}</span> <b style="color:${col}">${pos}</b></span>`;
+            }).join('')}</div>` : '<div style="color:var(--ink-3); font-size:11px; margin-top:4px">ключей нет</div>'}
+          </div>`).join('') : '<div class="ud-li" style="color:var(--ink-3)">нет</div>'}
         <div class="ud-act-t" style="margin-top:14px">Заказы (${u.orders.length})</div>
         ${u.orders.length ? u.orders.map(o => `<div class="ud-li">${esc(o.keyword)} <span class="mono" style="color:var(--ink-3)">· ${o.date} · ${o.delivered}/${o.count} · ${fmtMoney(o.cost)} · </span><span class="pill ${esc(o.status)}">${esc(o.status)}</span></div>`).join('') : '<div class="ud-li" style="color:var(--ink-3)">нет</div>'}
       </div>
