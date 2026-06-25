@@ -8,7 +8,8 @@
     "dev": "node --watch src/index.js",
     "admin": "node scripts/admin.js",
     "test": "node --test test/pricing.test.js test/boot.test.js",
-    "test:unit": "node --test test/pricing.test.js"
+    "test:unit": "node --test test/pricing.test.js",
+    "build:en": "node scripts/build-en.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -19,5 +20,8 @@
     "google-play-scraper": "^10.0.1",
     "jsonwebtoken": "^9.0.2",
     "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "node-html-parser": "^8.0.3"
   }
 }

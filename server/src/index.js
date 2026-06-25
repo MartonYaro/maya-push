@@ -51,6 +51,7 @@ app.use((req, res, next) => {
     const p = req.path;
     const stayOnRoot =
       p === '/' ||
+      p === '/en' || p === '/en/' ||      // English landing stays on marketing host
       p === '/tos' || p === '/tos.html' ||
       p === '/privacy' || p === '/privacy.html' ||
       p.startsWith('/api/') ||
