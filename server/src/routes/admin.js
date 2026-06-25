@@ -5,6 +5,8 @@ import { broadcast } from '../sse.js';
 import { notifyAdmin, tgTopupConfirmed } from '../services/telegram.js';
 import { audit } from '../services/audit.js';
 import { runBackup } from '../services/backup.js';
+import { emailTopupConfirmed } from '../services/notifications.js';
+import { runPositionDigest } from '../services/positionDigest.js';
 
 const router = Router();
 
@@ -178,6 +180,7 @@ router.post('/transactions/:id/confirm', (req, res) => {
   db.prepare('UPDATE transactions SET status = ? WHERE id = ?').run('done', tx.id);
   const row = db.prepare('SELECT * FROM transactions WHERE id = ?').get(tx.id);
   broadcast(tx.user_id, 'transaction.updated', row);
+  if (row.amount > 0) emailTopupConfirmed(tx.user_id, row.amount);
 
   try {
     const userRow = db.prepare('SELECT id, email, name FROM users WHERE id = ?').get(tx.user_id);
@@ -513,6 +516,17 @@ router.post('/backup', async (req, res) => {
     res.json({ ok: true, ...r });
   } catch (e) {
     res.status(500).json({ error: 'backup_failed', message: e.message });
+  }
+});
+
+// Manually trigger the position-rise digest (the cron runs it every 3 days).
+router.post('/run-digest', async (req, res) => {
+  try {
+    const r = await runPositionDigest();
+    audit(req, { actorId: req.user.id, action: 'admin.run_digest', meta: r });
+    res.json({ ok: true, ...r });
+  } catch (e) {
+    res.status(500).json({ error: 'digest_failed', message: e.message });
   }
 });
 

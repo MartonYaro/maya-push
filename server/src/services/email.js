@@ -159,3 +159,52 @@ export function renderWelcomeEmail({ name, dashboardUrl }) {
   const text = `Добро пожаловать, ${name}!\n\nКабинет: ${dashboardUrl}\nПоддержка: @MayaPush_bot`;
   return { subject, html, text };
 }
+
+const money = (n) => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(Number(n)) ? 0 : 2, maximumFractionDigits: 2 });
+
+export function renderTopupConfirmedEmail({ name, amount, balance, dashboardUrl }) {
+  const subject = `Баланс пополнен на ${money(amount)} — MAYA Push`;
+  const html = emailShell({
+    preheader: `Зачислено ${money(amount)}. Баланс: ${money(balance)}.`,
+    heading: 'Баланс пополнен ✅',
+    intro: `Привет, ${escapeHtml(name)}. Зачислили <b style="color:#3aff9f;">${money(amount)}</b> на ваш баланс. Текущий баланс — <b style="color:#f0ead8;">${money(balance)}</b>. Можно запускать кампании.`,
+    ctaText: 'В кабинет →',
+    ctaUrl: dashboardUrl,
+  });
+  const text = `Баланс пополнен на ${money(amount)}.\nТекущий баланс: ${money(balance)}.\nКабинет: ${dashboardUrl}`;
+  return { subject, html, text };
+}
+
+export function renderLowBalanceEmail({ name, balance, topupUrl }) {
+  const subject = 'Баланс заканчивается — MAYA Push';
+  const html = emailShell({
+    preheader: `На балансе осталось ${money(balance)}.`,
+    heading: 'Баланс заканчивается',
+    intro: `Привет, ${escapeHtml(name)}. На вашем балансе осталось <b style="color:#f0ead8;">${money(balance)}</b>. Пополните, чтобы кампании установок не&nbsp;останавливались и&nbsp;позиции продолжали расти.`,
+    ctaText: 'Пополнить баланс →',
+    ctaUrl: topupUrl,
+    note: 'Оплата криптой зачисляется автоматически за&nbsp;минуты.',
+  });
+  const text = `На балансе осталось ${money(balance)}. Пополнить: ${topupUrl}`;
+  return { subject, html, text };
+}
+
+export function renderPositionDigestEmail({ name, items, dashboardUrl }) {
+  const subject = `Позиции растут 🚀 — ${items.length} ${items.length === 1 ? 'ключ' : 'ключей'} вверх`;
+  const rows = items.slice(0, 20).map(it => `
+    <tr><td style="padding:7px 0; border-bottom:1px solid #232019; font-family:Arial,sans-serif; font-size:14px; color:#b8b0a0;">
+      <b style="color:#f0ead8;">${escapeHtml(it.term)}</b>${it.app ? ` <span style="color:#6a6358;">· ${escapeHtml(it.app)}</span>` : ''}
+    </td><td align="right" style="padding:7px 0; border-bottom:1px solid #232019; font-family:Arial,sans-serif; font-size:14px; white-space:nowrap;">
+      <span style="color:#6a6358;">#${it.from}</span> <span style="color:#6a6358;">→</span> <b style="color:#3aff9f;">#${it.to}</b> <span style="color:#3aff9f;">↑${it.from - it.to}</span>
+    </td></tr>`).join('');
+  const html = emailShell({
+    preheader: `${items.length} ключей поднялись за 3 дня.`,
+    heading: 'Ваши позиции растут 🚀',
+    intro: 'За последние 3&nbsp;дня вы поднялись по&nbsp;этим запросам:',
+    bodyHtml: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 4px;">${rows}</table>`,
+    ctaText: 'Посмотреть все позиции →',
+    ctaUrl: dashboardUrl,
+  });
+  const text = `Позиции растут!\n\n` + items.map(it => `${it.term}${it.app ? ' (' + it.app + ')' : ''}: #${it.from} → #${it.to}`).join('\n') + `\n\nКабинет: ${dashboardUrl}`;
+  return { subject, html, text };
+}

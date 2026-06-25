@@ -5,6 +5,7 @@ import { broadcast } from '../sse.js';
 import { notifyAdmin, tgInstallOrder, tgInstallCancelled } from '../services/telegram.js';
 import { audit } from '../services/audit.js';
 import { LIMITS } from '../config/limits.js';
+import { maybeEmailLowBalance } from '../services/notifications.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -210,6 +211,7 @@ router.post('/:id/installs', (req, res) => {
 
   const row = db.prepare('SELECT * FROM installs WHERE keyword_id = ? AND date = ?').get(kw.id, date);
   broadcast(req.user.id, 'install.scheduled', { keyword_id: kw.id, install: row });
+  if (cost > 0) maybeEmailLowBalance(req.user.id);
 
   // Telegram notification (fire-and-forget)
   try {

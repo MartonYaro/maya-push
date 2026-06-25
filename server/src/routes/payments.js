@@ -5,6 +5,7 @@ import { db, getBalance } from '../db.js';
 import { broadcast } from '../sse.js';
 import { nowpayments } from '../services/nowpayments.js';
 import { notifyAdmin, tgTopupConfirmed } from '../services/telegram.js';
+import { emailTopupConfirmed } from '../services/notifications.js';
 
 const router = Router();
 
@@ -26,6 +27,7 @@ router.post('/nowpayments/ipn', (req, res) => {
         db.prepare("UPDATE transactions SET status = 'done' WHERE id = ?").run(txId);
         const row = db.prepare('SELECT * FROM transactions WHERE id = ?').get(txId);
         broadcast(tx.user_id, 'transaction.updated', row);
+        if (row.amount > 0) emailTopupConfirmed(tx.user_id, row.amount);
         const userRow = db.prepare('SELECT id, email, name FROM users WHERE id = ?').get(tx.user_id);
         notifyAdmin(tgTopupConfirmed({
           user: userRow, amount: row.amount, txId, balance: getBalance(tx.user_id),

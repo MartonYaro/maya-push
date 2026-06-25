@@ -18,6 +18,7 @@ import referralsRoutes from './routes/referrals.js';
 import { nowpayments } from './services/nowpayments.js';
 import { attachStream } from './sse.js';
 import { runPositionTick } from './services/positionWorker.js';
+import { runPositionDigest } from './services/positionDigest.js';
 import { runBackup } from './services/backup.js';
 import { securityHeaders, accessLog } from './middleware/security.js';
 
@@ -150,6 +151,16 @@ if (cron.validate(backupExpr)) {
     runBackup().catch(err => console.error('[cron] backup failed:', err));
   });
   console.log(`[cron] daily backup scheduled: ${backupExpr}`);
+}
+
+// Growth: position-rise digest every 3 days (10:00 UTC by default)
+const digestExpr = process.env.DIGEST_CRON || '0 10 */3 * *';
+let digestJob = null;
+if (cron.validate(digestExpr)) {
+  digestJob = cron.schedule(digestExpr, () => {
+    runPositionDigest().catch(err => console.error('[cron] digest failed:', err));
+  });
+  console.log(`[cron] position digest scheduled: ${digestExpr}`);
 }
 
 // Graceful shutdown — important on paid plans where rolling deploys send SIGTERM.

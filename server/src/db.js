@@ -134,6 +134,10 @@ addColumnIfMissing('users', 'ref_code',    'TEXT');
 addColumnIfMissing('users', 'referred_by', 'INTEGER');
 addColumnIfMissing('users', 'ref_rate',    'REAL');   // per-user override; null = global default
 db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_refcode ON users(ref_code) WHERE ref_code IS NOT NULL;`);
+
+// Email lifecycle (v0.7) — low-balance flag (reset on top-up) + marketing opt-out.
+addColumnIfMissing('users', 'low_balance_notified', 'INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('users', 'email_optout',         'INTEGER NOT NULL DEFAULT 0');
 db.exec(`CREATE INDEX IF NOT EXISTS idx_users_referredby ON users(referred_by);`);
 // Backfill ref_code for any user that doesn't have one yet.
 (() => {
