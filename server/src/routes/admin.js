@@ -31,18 +31,22 @@ router.get('/users', (_req, res) => {
       COALESCE((SELECT SUM(amount) FROM transactions WHERE user_id = u.id AND status = 'done' AND type = 'topup' AND amount > 0), 0) AS total_deposited,
       (SELECT COUNT(*) FROM apps WHERE user_id = u.id) AS apps_count,
       (SELECT COUNT(*) FROM keywords k JOIN apps a ON a.id = k.app_id WHERE a.user_id = u.id) AS keywords_count,
-      COALESCE((SELECT SUM(i.cost) FROM installs i JOIN keywords k ON k.id = i.keyword_id JOIN apps a ON a.id = k.app_id WHERE a.user_id = u.id), 0) AS spent_on_installs
+      COALESCE((SELECT SUM(i.cost) FROM installs i JOIN keywords k ON k.id = i.keyword_id JOIN apps a ON a.id = k.app_id WHERE a.user_id = u.id), 0) AS spent_on_installs,
+      u.ref_code, u.referred_by, u.ref_rate,
+      (SELECT email FROM users ru WHERE ru.id = u.referred_by) AS referrer_email,
+      (SELECT COUNT(*) FROM users cu WHERE cu.referred_by = u.id) AS referral_count,
+      COALESCE((SELECT SUM(amount) FROM transactions WHERE user_id = u.id AND type = 'referral' AND status = 'done'), 0) AS ref_earned
     FROM users u ORDER BY u.created_at DESC
   `).all();
   for (const r of rows) r.tariff = tierName(r.total_deposited);
-  res.json({ users: rows });
+  res.json({ users: rows, defaultRefRate: REFERRAL_RATE() });
 });
 
 /** Full detail for one client. */
 router.get('/users/:id', (req, res) => {
   const u = db.prepare(`
     SELECT id, email, name, role, provider, telegram, avatar_url, blocked, custom_install_price,
-           email_verified, created_at, last_login_at
+           email_verified, created_at, last_login_at, ref_code, referred_by, ref_rate
     FROM users WHERE id = ?`).get(req.params.id);
   if (!u) return res.status(404).json({ error: 'not_found' });
   u.balance = getBalance(u.id);
@@ -70,6 +74,17 @@ router.get('/users/:id', (req, res) => {
     SELECT i.id, i.date, i.count, i.delivered, i.cost, i.status, k.term AS keyword, a.name AS app_name
     FROM installs i JOIN keywords k ON k.id=i.keyword_id JOIN apps a ON a.id=k.app_id
     WHERE a.user_id=? ORDER BY i.created_at DESC LIMIT 30`).all(u.id);
+  // Referral relationships: who referred this user + everyone they referred.
+  u.referrer = u.referred_by
+    ? db.prepare('SELECT id, email, name FROM users WHERE id = ?').get(u.referred_by)
+    : null;
+  u.referred = db.prepare(
+    `SELECT id, email, name, created_at FROM users WHERE referred_by = ? ORDER BY created_at DESC`
+  ).all(u.id);
+  u.ref_earned = db.prepare(
+    `SELECT COALESCE(SUM(amount),0) AS s FROM transactions WHERE user_id=? AND type='referral' AND status='done'`
+  ).get(u.id).s;
+  u.default_ref_rate = REFERRAL_RATE();
   res.json({ user: u });
 });
 
@@ -77,7 +92,7 @@ router.get('/users/:id', (req, res) => {
 router.patch('/users/:id', (req, res) => {
   const u = db.prepare('SELECT id, email FROM users WHERE id = ?').get(req.params.id);
   if (!u) return res.status(404).json({ error: 'not_found' });
-  const { blocked, custom_install_price, role } = req.body || {};
+  const { blocked, custom_install_price, role, ref_rate } = req.body || {};
 
   if (blocked !== undefined) {
     db.prepare('UPDATE users SET blocked = ? WHERE id = ?').run(blocked ? 1 : 0, u.id);
@@ -90,8 +105,16 @@ router.patch('/users/:id', (req, res) => {
   if (role !== undefined && (role === 'admin' || role === 'user')) {
     db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, u.id);
   }
-  audit(req, { userId: u.id, actorId: req.user.id, action: 'admin.user_update', meta: { blocked, custom_install_price, role } });
-  const row = db.prepare('SELECT id, blocked, custom_install_price, role FROM users WHERE id = ?').get(u.id);
+  if (ref_rate !== undefined) {
+    // null/'' resets to the global default; accept either a fraction (0.07) or a
+    // percent the admin typed (7 → 0.07). Clamp to a sane 0–100% range.
+    let rr = (ref_rate === null || ref_rate === '') ? null : parseFloat(ref_rate);
+    if (rr != null && !Number.isNaN(rr)) { if (rr > 1) rr = rr / 100; rr = Math.max(0, Math.min(1, rr)); }
+    else if (Number.isNaN(rr)) rr = null;
+    db.prepare('UPDATE users SET ref_rate = ? WHERE id = ?').run(rr, u.id);
+  }
+  audit(req, { userId: u.id, actorId: req.user.id, action: 'admin.user_update', meta: { blocked, custom_install_price, role, ref_rate } });
+  const row = db.prepare('SELECT id, blocked, custom_install_price, role, ref_rate FROM users WHERE id = ?').get(u.id);
   res.json({ ok: true, user: row });
 });
 
@@ -444,7 +467,9 @@ router.post('/orders/:id/status', (req, res) => {
       const buyer = db.prepare('SELECT referred_by FROM users WHERE id = ?').get(order.user_id);
       const already = db.prepare(`SELECT 1 FROM transactions WHERE ref_id = ? AND type = 'referral'`).get(`ref:${order.id}`);
       if (buyer && buyer.referred_by && !already) {
-        const rate = REFERRAL_RATE();
+        // Use the referrer's manual ref_rate if set, otherwise the global default.
+        const refRow = db.prepare('SELECT ref_rate FROM users WHERE id = ?').get(buyer.referred_by);
+        const rate = (refRow && refRow.ref_rate != null) ? refRow.ref_rate : REFERRAL_RATE();
         const reward = +(deliveredCount * rate * userInstallPrice(buyer.referred_by)).toFixed(2);
         if (reward > 0) {
           db.prepare(

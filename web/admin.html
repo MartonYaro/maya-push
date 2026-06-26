@@ -610,7 +610,7 @@ function renderUsers(rows) {
   $('usersCount2').textContent = rows.length;
   if (!rows.length) { $('usersTable').innerHTML = '<div class="empty">Нет пользователей</div>'; return; }
   $('usersTable').innerHTML = `<table>
-    <thead><tr><th>id</th><th>клиент</th><th>тариф / цена</th><th>депозит</th><th>баланс</th><th>прил.</th><th>ключи</th><th>статус</th><th></th></tr></thead>
+    <thead><tr><th>id</th><th>клиент</th><th>тариф / цена</th><th>депозит</th><th>баланс</th><th>прил.</th><th>ключи</th><th>реферал</th><th>статус</th><th></th></tr></thead>
     <tbody>${rows.map(u => `<tr ${u.blocked ? 'style="opacity:.55"' : ''}>
       <td class="mono">#${u.id}</td>
       <td>
@@ -626,6 +626,12 @@ function renderUsers(rows) {
       <td class="mono pos">${fmt(u.balance)}</td>
       <td class="mono">${u.apps_count}</td>
       <td class="mono">${u.keywords_count}</td>
+      <td style="font-size:11px; line-height:1.5">
+        ${u.referrer_email ? `<div style="color:var(--ink-2)">↳ от ${esc(u.referrer_email)}</div>` : ''}
+        ${u.referral_count > 0 ? `<div class="pos">привёл ${u.referral_count}${u.ref_earned > 0 ? ' · ' + fmt(u.ref_earned) : ''}</div>` : ''}
+        ${(u.ref_rate != null) ? `<div class="mono" style="color:var(--warn)">ставка ${Math.round(u.ref_rate * 100)}%</div>` : ''}
+        ${(!u.referrer_email && !u.referral_count && u.ref_rate == null) ? '<span style="color:var(--ink-3)">—</span>' : ''}
+      </td>
       <td>${u.blocked ? '<span class="pill rejected">заблокирован</span>' : '<span class="pill done">активен</span>'}</td>
       <td><button class="btn sm" onclick="openUserDetail(${u.id})">Детали →</button></td>
     </tr>`).join('')}</tbody>
@@ -687,6 +693,19 @@ function renderUserDetail(u) {
           ${u.role === 'admin' ? '' : `<button class="btn danger" onclick="udDelete(${u.id}, '${esc(u.email)}')">Удалить навсегда</button>`}
         </div>
       </div>
+      <div class="ud-act">
+        <div class="ud-act-t">🤝 Рефералка${u.ref_code ? ` · код <span class="mono">${esc(u.ref_code)}</span>` : ''} · заработал <span class="pos">${fmt(u.ref_earned || 0)}</span></div>
+        <div style="font-size:12px; color:var(--ink-2); margin-bottom:8px">
+          ${u.referrer ? `Пришёл по реф. от <b>${esc(u.referrer.name)}</b> <span style="color:var(--ink-3)">(${esc(u.referrer.email)})</span>` : 'Пришёл сам — без реферера'}
+          ${u.referred && u.referred.length ? ` · привёл <b>${u.referred.length}</b>` : ' · ещё никого не привёл'}
+        </div>
+        ${u.referred && u.referred.length ? `<div style="margin-bottom:8px; display:flex; flex-wrap:wrap; gap:6px">${u.referred.map(r => `<span style="cursor:pointer; padding:3px 8px; background:var(--bg-3,#181614); border-radius:6px; font-size:11px" onclick="openUserDetail(${r.id})"><b>${esc(r.name)}</b> <span style="color:var(--ink-3)">${esc(r.email)}</span></span>`).join('')}</div>` : ''}
+        <div class="ud-row">
+          <input type="number" id="udRefRate" placeholder="ставка % (пусто = дефолт ${Math.round((u.default_ref_rate || 0.05) * 100)}%)" step="1" min="0" max="100" value="${u.ref_rate != null ? Math.round(u.ref_rate * 100) : ''}">
+          <button class="btn primary" onclick="udSetRefRate(${u.id})">Сохранить ставку</button>
+          <button class="btn" onclick="udSetRefRate(${u.id}, true)">Сбросить</button>
+        </div>
+      </div>
     </div>
 
     <div class="ud-cols">
@@ -729,6 +748,13 @@ async function udSetPrice(id, reset) {
   const val = reset ? null : ($('udPrice').value === '' ? null : parseFloat($('udPrice').value));
   try {
     await adminFetch('/api/admin/users/' + id, { method: 'PATCH', body: JSON.stringify({ custom_install_price: val }) });
+    await openUserDetail(id); refresh();
+  } catch (e) { alert('Ошибка: ' + e.message); }
+}
+async function udSetRefRate(id, reset) {
+  const val = reset ? '' : $('udRefRate').value;
+  try {
+    await adminFetch('/api/admin/users/' + id, { method: 'PATCH', body: JSON.stringify({ ref_rate: val === '' ? null : val }) });
     await openUserDetail(id); refresh();
   } catch (e) { alert('Ошибка: ' + e.message); }
 }
