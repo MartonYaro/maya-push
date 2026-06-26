@@ -752,10 +752,11 @@ function renderDashboard() {
         </div>
         <div class="card-body dense">
           <div class="table-wrap"><table class="tbl"><thead><tr>
-            <th>Приложение</th><th>Гео</th><th>Ключей</th><th>В&nbsp;топ-10</th><th>Установок</th><th></th>
+            <th>Приложение</th><th>Гео</th><th>Ключей</th><th>В&nbsp;топ-10</th><th>Движение</th><th>Установок</th><th></th>
           </tr></thead><tbody>${data.apps.slice(0, 5).map(a => {
             const inst = a.keywords.reduce((s, k) => s + (k.totalInstalled || 0), 0);
             const top10 = a.keywords.filter(k => k.currentPos != null && k.currentPos <= 10).length;
+            const rose = a.keywords.filter(k => k.trend != null && k.trend < 0).length;
             return `<tr style="cursor:pointer" onclick="goPage('app', '${a.id}')">
               <td><div class="app-cell">
                 ${a.iconUrl
@@ -769,6 +770,7 @@ function renderDashboard() {
               <td class="mono">${geoLabelHtml(a.country)}</td>
               <td class="num">${a.keywords.length}</td>
               <td class="num green">${top10}</td>
+              <td>${rose > 0 ? `<span class="trend-pill up">↑ ${rose}</span>` : `<span class="trend-pill flat">—</span>`}</td>
               <td class="num">${formatNum(inst)}</td>
               <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();goPage('app', '${a.id}')">Открыть →</button></td>
             </tr>`;
@@ -820,9 +822,10 @@ function renderApps() {
             <button class="btn btn-primary" onclick="openAddApp()">Добавить приложение</button>
           </div></div></div>`
         : `<div class="card"><div class="card-body dense"><div class="table-wrap"><table class="tbl">
-            <thead><tr><th>Приложение</th><th>Гео</th><th>Ключей</th><th>Установок</th><th>Создано</th><th>Статус</th><th></th></tr></thead>
+            <thead><tr><th>Приложение</th><th>Гео</th><th>Ключей</th><th>Движение</th><th>Установок</th><th>Создано</th><th>Статус</th><th></th></tr></thead>
             <tbody>${data.apps.map(a => {
               const inst = a.keywords.reduce((s, k) => s + (k.totalInstalled || 0), 0);
+              const rose = a.keywords.filter(k => k.trend != null && k.trend < 0).length;
               return `<tr>
                 <td><div class="app-cell">
                   <div class="app-icon-sm" style="--ico-a: ${a.colorA}; --ico-b: ${a.colorB};">${escapeHtml(a.name.slice(0,1).toUpperCase())}</div>
@@ -833,6 +836,7 @@ function renderApps() {
                 </div></td>
                 <td class="mono">${geoLabelHtml(a.country)}</td>
                 <td class="num">${a.keywords.length}</td>
+                <td>${rose > 0 ? `<span class="trend-pill up">↑ ${rose}</span>` : `<span class="trend-pill flat">—</span>`}</td>
                 <td class="num green">${formatNum(inst)}</td>
                 <td class="mono">${formatDate(a.createdAt)}</td>
                 <td>${statusPill(a.status)}</td>
