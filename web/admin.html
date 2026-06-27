@@ -145,6 +145,7 @@
     <div class="tab active" data-panel="orders" onclick="switchTab('orders')">Заказы установок <span class="count" id="ordersScheduledCount">0</span></div>
     <div class="tab" data-panel="topups" onclick="switchTab('topups')">Пополнения <span class="count" id="pendingCount">0</span></div>
     <div class="tab" data-panel="users" onclick="switchTab('users')">Пользователи <span class="count" id="usersCount">0</span></div>
+    <div class="tab" data-panel="referrals" onclick="switchTab('referrals')">Рефералы <span class="count" id="referrersCount">0</span></div>
     <div class="tab" data-panel="finance" onclick="switchTab('finance')">Финансы</div>
     <div class="tab" data-panel="tx" onclick="switchTab('tx')">Все транзакции</div>
   </div>
@@ -219,6 +220,15 @@
     </div>
   </div>
 
+  <!-- REFERRALS PANEL -->
+  <div class="panel" id="panel-referrals">
+    <div class="card">
+      <h2><span>Реферальная сеть</span></h2>
+      <div class="stat-row" id="refKpis"></div>
+      <div id="refNetTable" style="margin-top:18px"></div>
+    </div>
+  </div>
+
   <!-- TX PANEL -->
   <div class="panel" id="panel-tx">
     <div class="card">
@@ -262,6 +272,74 @@ function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.panel === name));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
   if (name === 'finance') loadFinance();
+}
+
+let _users = [];
+let _defaultRefRate = 0.05;
+
+function renderReferralsAdmin() {
+  // Don't clobber a rate input the admin is mid-typing on the periodic refresh.
+  const af = document.activeElement;
+  if (af && af.id && af.id.startsWith('refRate-')) return;
+  const referrers = _users
+    .filter(u => u.referral_count > 0)
+    .sort((a, b) => b.referral_count - a.referral_count || (b.ref_earned || 0) - (a.ref_earned || 0));
+  const byId = Object.fromEntries(_users.map(u => [u.id, u]));
+
+  $('referrersCount').textContent = referrers.length;
+
+  const totalReferred = _users.filter(u => u.referred_by).length;
+  const totalPaid = _users.reduce((s, u) => s + (u.ref_earned || 0), 0);
+  const customRates = _users.filter(u => u.ref_rate != null).length;
+
+  if ($('refKpis')) $('refKpis').innerHTML = `
+    <div class="stat"><div class="stat-label">Рефереров</div><div class="stat-value">${referrers.length}</div></div>
+    <div class="stat"><div class="stat-label">Приглашено всего</div><div class="stat-value">${totalReferred}</div></div>
+    <div class="stat"><div class="stat-label">Выплачено по рефералке</div><div class="stat-value" style="color:var(--jade)">${fmtMoney(totalPaid)}</div></div>
+    <div class="stat"><div class="stat-label">Дефолтная ставка</div><div class="stat-value">${Math.round(_defaultRefRate * 100)}%</div></div>
+    <div class="stat"><div class="stat-label">Индивид. ставок</div><div class="stat-value" style="color:var(--warn)">${customRates}</div></div>`;
+
+  if (!referrers.length) { $('refNetTable').innerHTML = '<div class="empty">Пока никто никого не привёл</div>'; return; }
+
+  $('refNetTable').innerHTML = `<table>
+    <thead><tr><th>Реферер</th><th>Код</th><th>Привёл</th><th>Заработал</th><th>Ставка</th><th>Кого привёл</th></tr></thead>
+    <tbody>${referrers.map(u => {
+      const ratePct = u.ref_rate != null ? Math.round(u.ref_rate * 100) : '';
+      const invited = _users.filter(x => x.referred_by === u.id);
+      return `<tr>
+        <td style="cursor:pointer" onclick="openUserDetail(${u.id})" title="Открыть карточку">
+          <div style="color:var(--jade)">${esc(u.name || '')} →</div>
+          <div style="color:var(--ink-3);font-size:11px">${esc(u.email)}</div>
+        </td>
+        <td class="mono">${u.ref_code ? esc(u.ref_code) : '—'}</td>
+        <td class="mono pos">${u.referral_count}</td>
+        <td class="mono">${u.ref_earned > 0 ? fmt(u.ref_earned) : '<span style="color:var(--ink-3)">$0</span>'}</td>
+        <td>
+          <div style="display:flex;gap:4px;align-items:center">
+            <input type="number" id="refRate-${u.id}" value="${ratePct}" step="1" min="0" max="100"
+              placeholder="${Math.round(_defaultRefRate * 100)}" style="width:62px"
+              title="Пусто = дефолт ${Math.round(_defaultRefRate * 100)}%">
+            <button class="btn sm" onclick="adminSetRefRate(${u.id})">OK</button>
+            ${u.ref_rate != null ? `<button class="btn sm" onclick="adminSetRefRate(${u.id}, true)" title="Сбросить к дефолту">↺</button>` : ''}
+          </div>
+        </td>
+        <td style="font-size:11px;line-height:1.6">
+          ${invited.length
+            ? invited.map(x => `<span style="cursor:pointer;padding:2px 7px;background:var(--bg-3,#181614);border-radius:6px;margin:0 4px 4px 0;display:inline-block" onclick="openUserDetail(${x.id})"><b>${esc(x.name || x.email)}</b></span>`).join('')
+            : '<span style="color:var(--ink-3)">—</span>'}
+        </td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+async function adminSetRefRate(id, reset) {
+  const el = $('refRate-' + id);
+  const val = reset ? null : (el && el.value !== '' ? el.value : null);
+  try {
+    await adminFetch('/api/admin/users/' + id, { method: 'PATCH', body: JSON.stringify({ ref_rate: val }) });
+    refresh();
+  } catch (e) { alert('Ошибка: ' + e.message); }
 }
 
 let _finance = null;
@@ -423,7 +501,10 @@ async function refresh() {
     ]);
     renderPending(pending.transactions || []);
     renderTx(all.transactions || []);
-    renderUsers(users.users || []);
+    _users = users.users || [];
+    _defaultRefRate = users.defaultRefRate ?? 0.05;
+    renderUsers(_users);
+    renderReferralsAdmin();
     $('ordersScheduledCount').textContent = ordersScheduled.orders.length;
     $('ordersScheduledCount2').textContent = ordersScheduled.orders.length;
     loadOrders();
