@@ -29,6 +29,7 @@ const TITLE_EN = 'MAYA Push — motivated installs & ASO for the App Store and G
 const DESC_EN  = 'MAYA Push — motivated installs and ASO promotion for the App Store and Google Play: real devices and local IPs in any geo, transparent terms and a real-time install table. We push apps to the top.';
 const OG_DESC_EN = 'Real devices and local IPs in any geo. Transparent terms and a real-time install table — from strategy to locking your keyword positions in the App Store and Google Play.';
 const CANONICAL_EN = 'https://mayapush.com/en/';
+const OG_IMAGE_EN = 'https://mayapush.com/og-image-en.png';
 
 const html = readFileSync(srcPath, 'utf8');
 const root = parse(html, { comment: true, blockTextElements: { script: true, style: true, pre: true } });
@@ -59,6 +60,8 @@ setAttr('meta[property="og:locale"]', 'content', 'en_US');
 setAttr('meta[property="og:locale:alternate"]', 'content', 'ru_RU');
 setAttr('meta[name="twitter:title"]', 'content', TITLE_EN);
 setAttr('meta[name="twitter:description"]', 'content', OG_DESC_EN);
+setAttr('meta[property="og:image"]', 'content', OG_IMAGE_EN);
+setAttr('meta[name="twitter:image"]', 'content', OG_IMAGE_EN);
 
 // 4. Turn the language toggle into real links so the (now no-op) JS toggle
 //    can't strand the visitor on the wrong language.
