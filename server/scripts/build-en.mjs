@@ -25,7 +25,7 @@ const srcPath = resolve(webRoot, 'index.html');
 const outDir = resolve(webRoot, 'en');
 const outPath = resolve(outDir, 'index.html');
 
-const TITLE_EN = 'MAYA Push — Motivated installs & ASO for the App Store and Google Play';
+const TITLE_EN = 'MAYA Push — App Store Optimization (ASO) & App Promotion';
 const DESC_EN  = 'Push your app to the top of the App Store & Google Play with motivated installs from real devices, any geo. Transparent pricing, no minimum to start.';
 const OG_DESC_EN = 'Real devices and local IPs in any geo. Transparent terms and a real-time install table — from strategy to locking your keyword positions in the App Store and Google Play.';
 const CANONICAL_EN = 'https://mayapush.com/en/';
