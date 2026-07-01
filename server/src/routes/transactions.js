@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { db, now, getBalance } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { broadcast } from '../sse.js';
-import { notifyAdmin, tgNewTopup, tgTopupConfirmed } from '../services/telegram.js';
+import { notifyAdmin, tgNewTopup, tgTopupConfirmed, tgCryptoTopupStarted } from '../services/telegram.js';
 import { audit } from '../services/audit.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { nowpayments } from '../services/nowpayments.js';
@@ -114,6 +114,11 @@ router.post('/crypto',
       const row = db.prepare('SELECT * FROM transactions WHERE id = ?').get(txId);
       broadcast(req.user.id, 'transaction.created', row);
       audit(req, { userId: req.user.id, action: 'transaction.crypto_invoice', meta: { tx_id: txId, amount: a, invoice: inv.id } });
+      // Notify admin chat that a crypto payment was started (parity with the manager flow).
+      try {
+        const userRow = db.prepare('SELECT id, email, name, telegram FROM users WHERE id = ?').get(req.user.id);
+        notifyAdmin(tgCryptoTopupStarted({ user: userRow, amount: a, txId, invoiceId: inv.id })).catch(() => {});
+      } catch {}
       res.json({ invoice_url: inv.invoice_url, transaction: row });
     } catch (e) {
       // Roll back the placeholder so we don't leave a dangling pending row.

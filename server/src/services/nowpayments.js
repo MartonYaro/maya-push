@@ -12,10 +12,21 @@ import crypto from 'crypto';
 const API_BASE = 'https://api.nowpayments.io/v1';
 const API_KEY = process.env.NOWPAYMENTS_API_KEY || '';
 const IPN_SECRET = process.env.NOWPAYMENTS_IPN_SECRET || '';
+// Account login — needed ONLY for the reconciliation poller, which asks
+// NOWPayments for payment status when the IPN webhook never arrives. The list
+// endpoint requires a JWT (the api-key alone can't look a payment up by our
+// order_id), so we exchange email+password for a short-lived token.
+const EMAIL = process.env.NOWPAYMENTS_EMAIL || '';
+const PASSWORD = process.env.NOWPAYMENTS_PASSWORD || '';
+
+let _jwt = null;
+let _jwtExp = 0;
 
 export const nowpayments = {
   get isConfigured() { return !!API_KEY; },
   get ipnConfigured() { return !!IPN_SECRET; },
+  // Can we self-reconcile via the API (independent of the webhook)?
+  get canReconcile() { return !!(API_KEY && EMAIL && PASSWORD); },
 
   /**
    * Create a hosted invoice. Returns { id, invoice_url }.
@@ -65,6 +76,56 @@ export const nowpayments = {
     } catch {
       return false;
     }
+  },
+
+  /** Exchange email+password for a short-lived JWT (cached ~4 min). */
+  async _authToken() {
+    if (_jwt && Date.now() < _jwtExp) return _jwt;
+    const res = await fetch(`${API_BASE}/auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.token) throw new Error(data.message || `nowpayments_auth_${res.status}`);
+    _jwt = data.token;
+    _jwtExp = Date.now() + 4 * 60_000; // NOWPayments JWT lives ~5 min
+    return _jwt;
+  },
+
+  /**
+   * Look up the latest payment for one of our order ids (e.g. "maya_55") and
+   * return { status, paymentId, actuallyPaid } — or null if NOWPayments has no
+   * payment for it yet (user opened the invoice but never paid). Scans recent
+   * payments newest-first; stops once it pages past `since` (tx creation time).
+   */
+  async paymentStatusForOrder(orderId, { since } = {}) {
+    const token = await this._authToken();
+    const limit = 100;
+    for (let page = 0; page < 10; page++) {
+      const res = await fetch(
+        `${API_BASE}/payment/?limit=${limit}&page=${page}&sortBy=created_at&orderBy=desc`,
+        { headers: { 'x-api-key': API_KEY, Authorization: `Bearer ${token}` } },
+      );
+      if (!res.ok) throw new Error(`nowpayments_list_${res.status}`);
+      const data = await res.json().catch(() => ({}));
+      const list = data.data || data.result || [];
+      if (!list.length) break;
+      const hit = list.find(p => String(p.order_id) === orderId);
+      if (hit) {
+        return {
+          status: hit.payment_status,
+          paymentId: hit.payment_id,
+          actuallyPaid: hit.actually_paid,
+        };
+      }
+      // Everything below here is older; stop once the page's oldest predates the tx.
+      const oldest = list[list.length - 1];
+      const oldestMs = oldest && oldest.created_at ? new Date(oldest.created_at).getTime() : NaN;
+      if (since && Number.isFinite(oldestMs) && oldestMs < since) break;
+      if (list.length < limit) break;
+    }
+    return null;
   },
 };
 

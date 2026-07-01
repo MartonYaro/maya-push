@@ -107,6 +107,8 @@ addColumnIfMissing('users', 'telegram', 'TEXT');
 addColumnIfMissing('installs', 'delivered',  'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('installs', 'updated_at', 'INTEGER');
 addColumnIfMissing('installs', 'note',       'TEXT');
+// Auto-delivery (v0.9) — when the order auto-flips to 'delivered' (created_at + 3–8h)
+addColumnIfMissing('installs', 'deliver_at', 'INTEGER');
 
 // Social login (v0.4) — Google + Telegram
 addColumnIfMissing('users', 'google_id',   'TEXT');

@@ -583,6 +583,7 @@ function renderOrders(rows) {
 function renderOrderActions(r) {
   if (r.status === 'scheduled') return `
     <button class="btn sm blue" onclick="setOrderStatus(${r.id}, 'in_progress')">→ работа</button>
+    <button class="btn sm primary" onclick="setOrderStatus(${r.id}, 'delivered')">✓ доставлено</button>
     <button class="btn sm danger" onclick="setOrderStatus(${r.id}, 'cancelled')">отмена</button>
   `;
   if (r.status === 'in_progress') return `

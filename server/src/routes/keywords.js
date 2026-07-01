@@ -7,6 +7,7 @@ import { audit } from '../services/audit.js';
 import { LIMITS } from '../config/limits.js';
 import { maybeEmailLowBalance } from '../services/notifications.js';
 import { priceFor, installCost } from '../lib/pricing.js';
+import { deliverDelayMs } from '../services/autoDeliver.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -187,15 +188,19 @@ router.post('/:id/installs', (req, res) => {
   const balance = getBalance(req.user.id);
   if (cost > balance) return res.status(402).json({ error: 'insufficient_balance', balance });
 
+  // Installs land within 3–8h of the order; schedule the auto-delivery moment now.
+  const ts = now();
+  const deliverAt = ts + deliverDelayMs();
   const tx = db.transaction(() => {
     db.prepare(
-      `INSERT INTO installs (keyword_id, date, count, status, cost, created_at)
-       VALUES (?, ?, ?, 'scheduled', ?, ?)
+      `INSERT INTO installs (keyword_id, date, count, status, cost, created_at, deliver_at)
+       VALUES (?, ?, ?, 'scheduled', ?, ?, ?)
        ON CONFLICT(keyword_id, date) DO UPDATE SET
          count = excluded.count,
          cost  = excluded.cost,
-         status = 'scheduled'`
-    ).run(kw.id, date, c, cost, now());
+         status = 'scheduled',
+         deliver_at = excluded.deliver_at`
+    ).run(kw.id, date, c, cost, ts, deliverAt);
 
     if (cost > 0) {
       db.prepare(

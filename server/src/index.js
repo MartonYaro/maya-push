@@ -20,6 +20,8 @@ import { attachStream } from './sse.js';
 import { runPositionTick } from './services/positionWorker.js';
 import { runPositionDigest } from './services/positionDigest.js';
 import { runBackup } from './services/backup.js';
+import { runAutoDeliver } from './services/autoDeliver.js';
+import { runReconcile } from './services/nowpaymentsReconcile.js';
 import { securityHeaders, accessLog } from './middleware/security.js';
 
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16) {
@@ -154,6 +156,33 @@ if (cron.validate(backupExpr)) {
   console.log(`[cron] daily backup scheduled: ${backupExpr}`);
 }
 
+// Auto-deliver orders whose 3–8h window has elapsed (every 10 min by default).
+// Also runs once on boot so anything already overdue flips promptly.
+const autoDeliverExpr = process.env.AUTODELIVER_CRON || '*/10 * * * *';
+let autoDeliverJob = null;
+if (cron.validate(autoDeliverExpr)) {
+  autoDeliverJob = cron.schedule(autoDeliverExpr, () => {
+    try { runAutoDeliver(); } catch (err) { console.error('[cron] auto-deliver failed:', err); }
+  });
+  console.log(`[cron] auto-deliver scheduled: ${autoDeliverExpr}`);
+  try { runAutoDeliver(); } catch (err) { console.error('[cron] auto-deliver (boot) failed:', err); }
+}
+
+// NOWPayments reconciliation — auto-credit paid crypto top-ups even when the
+// IPN webhook never lands. Every 2 min by default, plus once on boot. No-op
+// unless NOWPAYMENTS_EMAIL + NOWPAYMENTS_PASSWORD are set (see canReconcile).
+const reconcileExpr = process.env.RECONCILE_CRON || '*/2 * * * *';
+let reconcileJob = null;
+if (nowpayments.canReconcile && cron.validate(reconcileExpr)) {
+  reconcileJob = cron.schedule(reconcileExpr, () => {
+    runReconcile().catch(err => console.error('[cron] reconcile failed:', err));
+  });
+  console.log(`[cron] nowpayments reconcile scheduled: ${reconcileExpr}`);
+  runReconcile().catch(err => console.error('[cron] reconcile (boot) failed:', err));
+} else if (!nowpayments.canReconcile) {
+  console.log('[cron] nowpayments reconcile DISABLED — set NOWPAYMENTS_EMAIL + NOWPAYMENTS_PASSWORD to auto-credit');
+}
+
 // Growth: position-rise digest every 3 days (10:00 UTC by default)
 const digestExpr = process.env.DIGEST_CRON || '0 10 */3 * *';
 let digestJob = null;
@@ -172,6 +201,8 @@ function shutdown(signal) {
   console.log(`[boot] ${signal} received — graceful shutdown`);
   try { cronJob?.stop(); } catch {}
   try { backupJob?.stop(); } catch {}
+  try { autoDeliverJob?.stop(); } catch {}
+  try { reconcileJob?.stop(); } catch {}
   server.close(() => {
     console.log('[boot] http server closed');
     process.exit(0);

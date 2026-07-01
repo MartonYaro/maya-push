@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db, getBalance, now, userInstallPrice, REFERRAL_RATE } from '../db.js';
+import { db, getBalance, now, REFERRAL_RATE } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { broadcast } from '../sse.js';
 import { notifyAdmin, tgTopupConfirmed } from '../services/telegram.js';
@@ -7,6 +7,9 @@ import { audit } from '../services/audit.js';
 import { runBackup } from '../services/backup.js';
 import { emailTopupConfirmed } from '../services/notifications.js';
 import { runPositionDigest } from '../services/positionDigest.js';
+import { payDeliveryReferral } from '../services/referral.js';
+import { runReconcile } from '../services/nowpaymentsReconcile.js';
+import { nowpayments } from '../services/nowpayments.js';
 
 const router = Router();
 
@@ -17,6 +20,21 @@ function requireAdmin(req, res, next) {
 }
 
 router.use(requireAuth, requireAdmin);
+
+// Manually trigger a NOWPayments reconciliation pass (auto-credit paid crypto
+// top-ups). Handy when a user says "I paid but my balance didn't move".
+router.post('/payments/reconcile', async (req, res) => {
+  if (!nowpayments.canReconcile) {
+    return res.status(503).json({ error: 'reconcile_unconfigured', hint: 'set NOWPAYMENTS_EMAIL + NOWPAYMENTS_PASSWORD' });
+  }
+  try {
+    const result = await runReconcile();
+    audit(req, { userId: req.user.id, action: 'payments.reconcile', meta: result });
+    res.json({ ok: true, result });
+  } catch (e) {
+    res.status(502).json({ error: 'reconcile_failed', message: e.message });
+  }
+});
 
 function tierName(dep) {
   return dep >= 50000 ? 'Enterprise' : dep >= 15000 ? 'Scale ($0.12)'
@@ -464,23 +482,7 @@ router.post('/orders/:id/status', (req, res) => {
     // Referral payout: when installs are actually delivered, credit the buyer's
     // referrer with a % of the delivered COUNT, valued at the REFERRER's price.
     if ((status === 'delivered' || status === 'partial') && deliveredCount > 0) {
-      const buyer = db.prepare('SELECT referred_by FROM users WHERE id = ?').get(order.user_id);
-      const already = db.prepare(`SELECT 1 FROM transactions WHERE ref_id = ? AND type = 'referral'`).get(`ref:${order.id}`);
-      if (buyer && buyer.referred_by && !already) {
-        // Use the referrer's manual ref_rate if set, otherwise the global default.
-        const refRow = db.prepare('SELECT ref_rate FROM users WHERE id = ?').get(buyer.referred_by);
-        const rate = (refRow && refRow.ref_rate != null) ? refRow.ref_rate : REFERRAL_RATE();
-        const reward = +(deliveredCount * rate * userInstallPrice(buyer.referred_by)).toFixed(2);
-        if (reward > 0) {
-          db.prepare(
-            `INSERT INTO transactions (user_id, type, amount, status, description, ref_id, created_at)
-             VALUES (?, 'referral', ?, 'done', ?, ?, ?)`
-          ).run(buyer.referred_by, reward,
-            `Реферальный бонус: ${deliveredCount} установок · ${Math.round(rate * 100)}% по вашему тарифу`,
-            `ref:${order.id}`, now());
-          refPayout = { userId: buyer.referred_by, amount: reward };
-        }
-      }
+      refPayout = payDeliveryReferral(order, deliveredCount);
     }
   });
   tx();

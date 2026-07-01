@@ -117,6 +117,14 @@ export function tgNewTopup({ user, amount, method, comment, txId }) {
 🔗 <a href="${adminLink}">Открыть админку</a>`;
 }
 
+export function tgCryptoTopupStarted({ user, amount, txId, invoiceId }) {
+  return `🪙 <b>Крипто-пополнение начато</b>
+👤 ${tgEscape(user.name)} (<code>${tgEscape(user.email)}</code>)
+💵 Сумма: <b>${fmtMoney(amount)}</b>
+🧾 TX #${txId} · invoice <code>${tgEscape(invoiceId)}</code>
+<i>Зачислится автоматически после оплаты (IPN). Если повисло — подтверди в админке.</i>`;
+}
+
 export function tgTopupConfirmed({ user, amount, txId, balance }) {
   return `✅ <b>Пополнение подтверждено</b>
 👤 ${tgEscape(user.name)} (<code>${tgEscape(user.email)}</code>)

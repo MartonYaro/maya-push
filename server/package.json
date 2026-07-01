@@ -7,7 +7,7 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "admin": "node scripts/admin.js",
-    "test": "node --test test/pricing.test.js test/boot.test.js",
+    "test": "node --test test/pricing.test.js test/boot.test.js test/autodeliver.test.js",
     "test:unit": "node --test test/pricing.test.js",
     "build:en": "node scripts/build-en.mjs"
   },
