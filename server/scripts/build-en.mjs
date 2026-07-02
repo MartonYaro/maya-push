@@ -81,6 +81,10 @@ if (toggle) {
     ".lang-toggle .lt-link.active{background:var(--jade);color:var(--bg)}</style>");
 }
 
+// 5. Point legal links at their English versions (web/en/tos.html, web/en/privacy.html).
+for (const a of root.querySelectorAll('a[href="/tos"]')) a.setAttribute('href', '/en/tos');
+for (const a of root.querySelectorAll('a[href="/privacy"]')) a.setAttribute('href', '/en/privacy');
+
 let out = root.toString();
 if (!/^\s*<!doctype/i.test(out)) out = '<!DOCTYPE html>\n' + out;
 
