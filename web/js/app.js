@@ -11,7 +11,7 @@
 const API = window.MayaAPI;
 
 const colorPalette = [
-  ['#3aff9f', '#1a9c5e'],
+  ['#7CFCA5', '#1a9c5e'],
   ['#FC5200', '#d94800'],
   ['#0072CE', '#005ba8'],
   ['#e8a04a', '#b8842c'],
@@ -1446,7 +1446,7 @@ function renderExplorerResults() {
                 <td><div class="app-cell">
                   ${a.icon_url
                     ? `<img src="${escapeAttr(a.icon_url)}" alt="" style="width:40px;height:40px;border-radius:9px;object-fit:cover;flex-shrink:0">`
-                    : `<div class="app-icon-sm" style="--ico-a:#3aff9f;--ico-b:#1a9c5e;">${escapeHtml((a.name||'?').slice(0,1).toUpperCase())}</div>`}
+                    : `<div class="app-icon-sm" style="--ico-a:#7CFCA5;--ico-b:#1a9c5e;">${escapeHtml((a.name||'?').slice(0,1).toUpperCase())}</div>`}
                   <div class="app-cell-info">
                     <div class="app-cell-name">${escapeHtml(a.name || ('App #' + a.store_id))}</div>
                     ${a.subtitle ? `<div class="app-cell-meta">${escapeHtml(a.subtitle)}</div>` : ''}
@@ -2759,7 +2759,7 @@ function statusPill(status) {
 function storeBadge(store) {
   const gp = store === 'googleplay';
   const label = gp ? 'Google Play' : 'App Store';
-  const color = gp ? '#5cc26a' : '#3aff9f';
+  const color = gp ? '#5cc26a' : '#7CFCA5';
   return `<span style="display:inline-block; font-size:10px; font-weight:600; padding:1px 6px; border-radius:5px; border:1px solid ${color}55; color:${color}; margin-right:6px; vertical-align:1px;">${label}</span>`;
 }
 function txTypeLabel(t) { return ({ topup: 'Пополнение', spend: 'Списание', system: 'Система' })[t] || t; }
