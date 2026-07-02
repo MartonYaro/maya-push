@@ -21,13 +21,14 @@ export function securityHeaders(_req, res, next) {
     [
       "default-src 'self'",
       "img-src 'self' data: https:",
-      "style-src 'self' 'unsafe-inline' https://accounts.google.com",
-      // Allow Google Identity Services + Telegram Login widget scripts
-      "script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com https://telegram.org https://*.telegram.org https://www.gstatic.com",
+      // Google Fonts stylesheets (landing + dashboard typography)
+      "style-src 'self' 'unsafe-inline' https://accounts.google.com https://fonts.googleapis.com",
+      // Allow Google Identity Services + Telegram Login widget scripts + three.js (landing 3D scene)
+      "script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com https://telegram.org https://*.telegram.org https://www.gstatic.com https://cdnjs.cloudflare.com",
       "connect-src 'self' https:",
       // Google + Telegram render their auth UI inside iframes
       "frame-src 'self' https://accounts.google.com https://oauth.telegram.org https://*.telegram.org",
-      "font-src 'self' data:",
+      "font-src 'self' data: https://fonts.gstatic.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
     ].join('; ')
