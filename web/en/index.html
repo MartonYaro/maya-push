@@ -245,6 +245,10 @@ header.hidden{transform:translateY(-100%)}
   border-top:1px solid var(--line)}
 section{padding:84px 0;position:relative}
 @media(min-width:820px){section{padding:104px 0}}
+/* sections carry .wrap, whose `padding:0 20px` (class) beats `section` (type) —
+   so vertical rhythm must be declared at class specificity too */
+section.wrap{padding:84px 20px}
+@media(min-width:820px){section.wrap{padding:104px 20px}}
 .sec-head{margin-bottom:38px}
 .sec-head h2{font-weight:900;text-transform:uppercase;letter-spacing:-.02em;line-height:.96;
   font-size:clamp(38px,6.5vw,66px);margin-top:16px}
