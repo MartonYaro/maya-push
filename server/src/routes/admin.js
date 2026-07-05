@@ -34,7 +34,15 @@ router.get('/group-stats', (req, res) => {
        FROM group_hits WHERE created_at > ? GROUP BY ref ORDER BY views DESC LIMIT 15`
   ).all(since);
   const total = db.prepare(`SELECT COUNT(*) AS n FROM group_hits WHERE created_at > ?`).get(since).n;
-  res.json({ days, total, daily, referrers });
+  const langs = db.prepare(
+    `SELECT COALESCE(NULLIF(lang,''),'(unknown)') AS lang, COUNT(*) AS views
+       FROM group_hits WHERE created_at > ? GROUP BY lang ORDER BY views DESC LIMIT 10`
+  ).all(since);
+  const paths = db.prepare(
+    `SELECT COALESCE(NULLIF(path,''),'/') AS path, COUNT(*) AS views
+       FROM group_hits WHERE created_at > ? GROUP BY path ORDER BY views DESC LIMIT 10`
+  ).all(since);
+  res.json({ days, total, daily, referrers, langs, paths });
 });
 
 // Manually trigger a NOWPayments reconciliation pass (auto-credit paid crypto

@@ -148,6 +148,29 @@
     <div class="tab" data-panel="referrals" onclick="switchTab('referrals')">Рефералы <span class="count" id="referrersCount">0</span></div>
     <div class="tab" data-panel="finance" onclick="switchTab('finance')">Финансы</div>
     <div class="tab" data-panel="tx" onclick="switchTab('tx')">Все транзакции</div>
+    <div class="tab" data-panel="stats" onclick="switchTab('stats')">Статистика сайта</div>
+  </div>
+
+  <!-- SITE STATS PANEL (group-maya.com beacon analytics) -->
+  <div class="panel" id="panel-stats">
+    <div class="card">
+      <h2><span>group-maya.com · посещаемость</span></h2>
+      <div class="filters">
+        <label>период</label>
+        <button class="btn" data-gsd="7" onclick="loadGroupStats(7)">7 дней</button>
+        <button class="btn" data-gsd="30" onclick="loadGroupStats(30)">30 дней</button>
+        <button class="btn" data-gsd="90" onclick="loadGroupStats(90)">90 дней</button>
+        <span style="flex:1"></span>
+        <button class="btn" onclick="loadGroupStats(window._gsDays||30)">↻ Обновить</button>
+      </div>
+      <div class="stat-row" id="gsKpis"></div>
+      <div id="gsChart" style="margin-top:18px"></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:18px">
+        <div><h3 style="font-size:13px;margin-bottom:8px;opacity:.8">Источники</h3><div id="gsRefs"></div></div>
+        <div><h3 style="font-size:13px;margin-bottom:8px;opacity:.8">Языки</h3><div id="gsLangs"></div></div>
+        <div><h3 style="font-size:13px;margin-bottom:8px;opacity:.8">Страницы</h3><div id="gsPaths"></div></div>
+      </div>
+    </div>
   </div>
 
   <!-- FINANCE PANEL -->
@@ -272,6 +295,51 @@ function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.panel === name));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
   if (name === 'finance') loadFinance();
+  if (name === 'stats') loadGroupStats(window._gsDays || 30);
+}
+
+/* ── group-maya.com beacon analytics ── */
+async function loadGroupStats(days) {
+  window._gsDays = days;
+  document.querySelectorAll('[data-gsd]').forEach(b => {
+    b.style.borderColor = (+b.dataset.gsd === days) ? '#3aff9f' : '';
+    b.style.color = (+b.dataset.gsd === days) ? '#3aff9f' : '';
+  });
+  let d;
+  try { d = await adminFetch('/api/admin/group-stats?days=' + days); }
+  catch (e) { $('gsKpis').innerHTML = '<div class="stat"><div class="stat-label">Ошибка</div><div class="stat-value">' + esc(e.message) + '</div></div>'; return; }
+
+  const avg = Math.round(d.total / Math.max(1, days));
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayRow = d.daily.find(r => r.day === todayKey);
+  const topRef = d.referrers.length ? d.referrers[0].ref : '—';
+  $('gsKpis').innerHTML = [
+    ['Просмотров за ' + days + ' дн.', fmtInt(d.total)],
+    ['В среднем / день', fmtInt(avg)],
+    ['Сегодня', fmtInt(todayRow ? todayRow.views : 0)],
+    ['Топ-источник', esc(topRef)],
+  ].map(([l, v]) => `<div class="stat"><div class="stat-label">${l}</div><div class="stat-value" style="font-size:${String(v).length > 12 ? 15 : 22}px">${v}</div></div>`).join('');
+
+  // Daily bar chart — fill gaps so quiet days show as empty slots.
+  const map = {}; d.daily.forEach(r => { map[r.day] = r.views; });
+  const bars = []; const now = Date.now();
+  for (let i = days - 1; i >= 0; i--) {
+    const key = new Date(now - i * 864e5).toISOString().slice(0, 10);
+    bars.push({ key, v: map[key] || 0 });
+  }
+  const max = Math.max(1, ...bars.map(b => b.v));
+  $('gsChart').innerHTML =
+    `<div style="display:flex;align-items:flex-end;gap:2px;height:120px;border-bottom:1px solid rgba(255,255,255,.12)">` +
+    bars.map(b => `<div title="${b.key} · ${b.v}" style="flex:1;min-width:2px;height:${Math.max(3, Math.round(b.v / max * 114))}px;background:${b.v ? '#3aff9f' : 'rgba(255,255,255,.07)'};border-radius:2px 2px 0 0"></div>`).join('') +
+    `</div><div style="display:flex;justify-content:space-between;font-size:10px;opacity:.5;margin-top:4px"><span>${bars[0].key}</span><span>${bars[bars.length - 1].key}</span></div>`;
+
+  const tbl = (rows, key) => rows.length
+    ? `<table style="width:100%;font-size:12.5px;border-collapse:collapse">` + rows.map(r =>
+        `<tr style="border-bottom:1px solid rgba(255,255,255,.06)"><td style="padding:5px 6px">${esc(r[key])}</td><td style="padding:5px 6px;text-align:right;color:#3aff9f">${fmtInt(r.views)}</td></tr>`).join('') + `</table>`
+    : '<div style="opacity:.5;font-size:12px">пока пусто</div>';
+  $('gsRefs').innerHTML = tbl(d.referrers, 'ref');
+  $('gsLangs').innerHTML = tbl(d.langs, 'lang');
+  $('gsPaths').innerHTML = tbl(d.paths, 'path');
 }
 
 let _users = [];
