@@ -168,6 +168,18 @@ CREATE TABLE IF NOT EXISTS password_resets (
   created_at  INTEGER NOT NULL
 );
 
+-- Pageview beacons from the holding landing (group-maya.com). No PII —
+-- referrer is trimmed to a hostname client-side, no IPs stored.
+CREATE TABLE IF NOT EXISTS group_hits (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  path        TEXT,
+  referrer    TEXT,
+  lang        TEXT,
+  ua          TEXT,
+  created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_group_hits_time ON group_hits(created_at);
+
 CREATE TABLE IF NOT EXISTS audit_log (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,

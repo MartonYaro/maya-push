@@ -21,6 +21,22 @@ function requireAdmin(req, res, next) {
 
 router.use(requireAuth, requireAdmin);
 
+// In-house analytics for group-maya.com: daily pageviews + top referrers.
+router.get('/group-stats', (req, res) => {
+  const days = Math.min(+req.query.days || 30, 90);
+  const since = Date.now() - days * 24 * 60 * 60_000;
+  const daily = db.prepare(
+    `SELECT date(created_at/1000, 'unixepoch') AS day, COUNT(*) AS views
+       FROM group_hits WHERE created_at > ? GROUP BY day ORDER BY day`
+  ).all(since);
+  const referrers = db.prepare(
+    `SELECT COALESCE(NULLIF(referrer,''),'(direct)') AS ref, COUNT(*) AS views
+       FROM group_hits WHERE created_at > ? GROUP BY ref ORDER BY views DESC LIMIT 15`
+  ).all(since);
+  const total = db.prepare(`SELECT COUNT(*) AS n FROM group_hits WHERE created_at > ?`).get(since).n;
+  res.json({ days, total, daily, referrers });
+});
+
 // Manually trigger a NOWPayments reconciliation pass (auto-credit paid crypto
 // top-ups). Handy when a user says "I paid but my balance didn't move".
 router.post('/payments/reconcile', async (req, res) => {

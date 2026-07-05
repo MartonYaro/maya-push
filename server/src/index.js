@@ -15,6 +15,7 @@ import researchRoutes from './routes/research.js';
 import paymentsRoutes from './routes/payments.js';
 import telegramRoutes from './routes/telegram.js';
 import referralsRoutes from './routes/referrals.js';
+import groupRoutes from './routes/group.js';
 import { nowpayments } from './services/nowpayments.js';
 import { attachStream } from './sse.js';
 import { runPositionTick } from './services/positionWorker.js';
@@ -99,6 +100,7 @@ app.use('/api/research', researchRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/telegram', telegramRoutes);
 app.use('/api/referrals', referralsRoutes);
+app.use('/api/group', groupRoutes);   // public endpoints for group-maya.com
 
 app.get('/api/stream', (req, res) => attachStream(req, res));
 
