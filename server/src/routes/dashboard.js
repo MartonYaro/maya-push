@@ -29,12 +29,19 @@ router.get('/summary', (req, res) => {
     `SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 5`
   ).all(uid);
 
+  // Lifetime confirmed deposits — drives the pricing-tier progress bar.
+  const totalDeposited = db.prepare(
+    `SELECT COALESCE(SUM(amount), 0) AS s FROM transactions
+      WHERE user_id = ? AND type = 'topup' AND status = 'done' AND amount > 0`
+  ).get(uid).s;
+
   res.json({
     apps_count: apps.length,
     active_apps: apps.filter(a => a.status === 'active').length,
     keywords_count: totalKeywords,
     installs_total: totalInstalls,
     balance: getBalance(uid),
+    total_deposited: totalDeposited,
     recent_transactions: recentTx,
   });
 });

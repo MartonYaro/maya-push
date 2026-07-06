@@ -10,7 +10,7 @@ process.env.REFERRAL_RATE = '0.05';
 delete process.env.ADMIN_EMAILS;
 
 const { db, now } = await import('../src/db.js');
-const { runAutoDeliver, deliverDelayMs } = await import('../src/services/autoDeliver.js');
+const { runAutoDeliver, deliverDelayMs, deliverAtFor } = await import('../src/services/autoDeliver.js');
 
 let seq = 0;
 function seed() {
@@ -34,6 +34,29 @@ test('deliverDelayMs stays within the 3–8h window', () => {
   }
 });
 
+test('deliverAtFor keeps delivery inside the POOL day', () => {
+  const H = 3600_000;
+  const t = now();
+  // Order placed now for TOMORROW: delivery must land tomorrow 14:00–22:00 UTC,
+  // never today — this is the "заказ на завтра не готов сегодня" rule.
+  const tomorrow = new Date(t + 24 * H).toISOString().slice(0, 10);
+  const tomorrowStart = Date.parse(tomorrow + 'T00:00:00Z');
+  for (let i = 0; i < 300; i++) {
+    const at = deliverAtFor(tomorrow, t);
+    assert.ok(at >= tomorrowStart + 14 * H, `delivered before the pool day window: ${at}`);
+    assert.ok(at <= tomorrowStart + 22 * H, `delivered after the pool day window: ${at}`);
+  }
+  // Same-day order placed late at night: 3h minimum from creation still holds.
+  const today = new Date(t).toISOString().slice(0, 10);
+  for (let i = 0; i < 300; i++) {
+    const at = deliverAtFor(today, t);
+    assert.ok(at >= t + 3 * H, `same-day order delivered sooner than 3h: ${at - t}`);
+  }
+  // Garbage date falls back to creation-based delay.
+  const fb = deliverAtFor('not-a-date', t);
+  assert.ok(fb >= t + 3 * H && fb <= t + 8 * H);
+});
+
 test('flips due orders to delivered (full count) and pays the referrer; leaves future ones', () => {
   const { ref, kw, t } = seed();
   const due = db.prepare(
@@ -50,8 +73,10 @@ test('flips due orders to delivered (full count) and pays the referrer; leaves f
   assert.equal(d.status, 'delivered');
   assert.equal(d.delivered, 10);
 
+  // Its pool day (a past date) has begun but deliver_at is still in the future →
+  // the order is being worked, not delivered.
   const f = db.prepare('SELECT status, delivered FROM installs WHERE id=?').get(future);
-  assert.equal(f.status, 'scheduled');
+  assert.equal(f.status, 'in_progress');
   assert.equal(f.delivered, 0);
 
   const tx = db.prepare("SELECT amount FROM transactions WHERE user_id=? AND type='referral'").get(ref);
@@ -84,4 +109,18 @@ test('does not touch cancelled / failed / already-delivered orders', () => {
 
   runAutoDeliver();
   assert.equal(db.prepare('SELECT status FROM installs WHERE id=?').get(cancelled).status, 'cancelled');
+});
+
+test('an order for a FUTURE pool day stays scheduled', () => {
+  const { kw, t } = seed();
+  const H = 3600_000;
+  const tomorrow = new Date(t + 24 * H).toISOString().slice(0, 10);
+  const id = db.prepare(
+    'INSERT INTO installs (keyword_id,date,count,status,cost,created_at,deliver_at) VALUES (?,?,?,?,?,?,?)'
+  ).run(kw, tomorrow, 7, 'scheduled', 2.1, t, deliverAtFor(tomorrow, t)).lastInsertRowid;
+
+  runAutoDeliver();
+  const row = db.prepare('SELECT status, delivered FROM installs WHERE id=?').get(id);
+  assert.equal(row.status, 'scheduled', 'tomorrow order must not start or deliver today');
+  assert.equal(row.delivered, 0);
 });

@@ -12,6 +12,26 @@ export function deliverDelayMs() {
 }
 
 /**
+ * Delivery moment for an order, bound to its POOL DAY (`date`, YYYY-MM-DD).
+ * Installs run through the target day and complete between 14:00–22:00 UTC of
+ * that day — an order placed today for tomorrow must NOT show "delivered"
+ * tonight. For same-day orders placed late, the 3–8h minimum from creation
+ * still applies (whichever is later).
+ */
+export function deliverAtFor(dateStr, createdAt = now()) {
+  const dayStart = Date.parse(String(dateStr) + 'T00:00:00Z');
+  const minFromCreation = createdAt + deliverDelayMs();
+  if (!Number.isFinite(dayStart)) return minFromCreation;
+  const withinPoolDay = dayStart + Math.round((14 + Math.random() * 8) * HOUR);
+  return Math.max(withinPoolDay, minFromCreation);
+}
+
+/** YYYY-MM-DD of "now" in UTC — pool days are UTC-based. */
+function todayUTC() {
+  return new Date(now()).toISOString().slice(0, 10);
+}
+
+/**
  * Auto-deliver: orders placed by clients are fulfilled by the supplier within
  * 3–8h, so we flip them to `delivered` (full count) once their per-order
  * `deliver_at` passes. This drives the client-facing "доставлено" status,
@@ -23,18 +43,37 @@ export function deliverDelayMs() {
  * @returns {{assigned:number, delivered:number}}
  */
 export function runAutoDeliver() {
-  // 1. Backfill deliver_at for any pending order that lacks one.
+  // 1. Backfill deliver_at for any pending order that lacks one (pool-day aware).
   const missing = db.prepare(
-    `SELECT id, created_at FROM installs
+    `SELECT id, date, created_at FROM installs
      WHERE deliver_at IS NULL AND status IN ('scheduled','in_progress')`
   ).all();
   const setDeliverAt = db.prepare('UPDATE installs SET deliver_at = ? WHERE id = ?');
   const assignTx = db.transaction(() => {
-    for (const r of missing) setDeliverAt.run((r.created_at || now()) + deliverDelayMs(), r.id);
+    for (const r of missing) setDeliverAt.run(deliverAtFor(r.date, r.created_at || now()), r.id);
   });
   assignTx();
 
-  // 2. Deliver everything whose window has elapsed.
+  // 2. Pool day has begun → the order is being worked: scheduled → in_progress.
+  const started = db.prepare(`
+    SELECT i.id, a.user_id
+    FROM installs i
+    JOIN keywords k ON k.id = i.keyword_id
+    JOIN apps a     ON a.id = k.app_id
+    WHERE i.status = 'scheduled' AND i.date <= ?
+      AND (i.deliver_at IS NULL OR i.deliver_at > ?)
+  `).all(todayUTC(), now());
+  if (started.length) {
+    const flip = db.prepare(`UPDATE installs SET status = 'in_progress', updated_at = ? WHERE id = ?`);
+    const flipTx = db.transaction(() => { for (const r of started) flip.run(now(), r.id); });
+    flipTx();
+    for (const r of started) {
+      const fresh = db.prepare('SELECT * FROM installs WHERE id = ?').get(r.id);
+      broadcast(r.user_id, 'install.updated', fresh);
+    }
+  }
+
+  // 3. Deliver everything whose window has elapsed.
   const due = db.prepare(`
     SELECT i.*, k.app_id, a.user_id
     FROM installs i
@@ -68,6 +107,6 @@ export function runAutoDeliver() {
       console.error(`[auto-deliver] order ${order.id} failed:`, err);
     }
   }
-  if (delivered) console.log(`[auto-deliver] delivered ${delivered} order(s)`);
-  return { assigned: missing.length, delivered };
+  if (delivered || started.length) console.log(`[auto-deliver] started ${started.length}, delivered ${delivered} order(s)`);
+  return { assigned: missing.length, started: started.length, delivered };
 }

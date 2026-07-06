@@ -7,7 +7,7 @@ import { audit } from '../services/audit.js';
 import { LIMITS } from '../config/limits.js';
 import { maybeEmailLowBalance } from '../services/notifications.js';
 import { priceFor, installCost } from '../lib/pricing.js';
-import { deliverDelayMs } from '../services/autoDeliver.js';
+import { deliverAtFor } from '../services/autoDeliver.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -101,7 +101,13 @@ router.get('/by-app/:appId', (req, res) => {
   const app = ownsApp(req.user.id, req.params.appId);
   if (!app) return res.status(404).json({ error: 'not_found' });
   const rows = db.prepare(
-    `SELECT k.*, COALESCE((SELECT SUM(count) FROM installs WHERE keyword_id = k.id), 0) AS total_installed
+    `SELECT k.*,
+       COALESCE((SELECT SUM(count) FROM installs WHERE keyword_id = k.id), 0) AS total_installed,
+       COALESCE((SELECT SUM(delivered) FROM installs WHERE keyword_id = k.id AND status = 'delivered'), 0) AS total_delivered,
+       (SELECT status FROM installs WHERE keyword_id = k.id AND status IN ('scheduled','in_progress','delivered')
+          ORDER BY date DESC LIMIT 1) AS last_order_status,
+       (SELECT date FROM installs WHERE keyword_id = k.id AND status IN ('scheduled','in_progress','delivered')
+          ORDER BY date DESC LIMIT 1) AS last_order_date
      FROM keywords k WHERE k.app_id = ? ORDER BY k.created_at DESC`
   ).all(app.id);
   res.json({ keywords: rows });
@@ -153,7 +159,7 @@ router.get('/:id/installs', (req, res) => {
   const kw = ownsKeyword(req.user.id, req.params.id);
   if (!kw) return res.status(404).json({ error: 'not_found' });
   const rows = db.prepare(
-    `SELECT date, count, status, cost FROM installs WHERE keyword_id = ? ORDER BY date ASC`
+    `SELECT date, count, status, cost, delivered, deliver_at FROM installs WHERE keyword_id = ? ORDER BY date ASC`
   ).all(kw.id);
   res.json({ installs: rows });
 });
@@ -188,9 +194,11 @@ router.post('/:id/installs', (req, res) => {
   const balance = getBalance(req.user.id);
   if (cost > balance) return res.status(402).json({ error: 'insufficient_balance', balance });
 
-  // Installs land within 3–8h of the order; schedule the auto-delivery moment now.
+  // Delivery lives inside the POOL DAY of the order: an order for tomorrow is
+  // worked tomorrow and completes within that day (14:00–22:00 UTC), never
+  // earlier than 3–8h after creation for same-day orders.
   const ts = now();
-  const deliverAt = ts + deliverDelayMs();
+  const deliverAt = deliverAtFor(date, ts);
   const tx = db.transaction(() => {
     db.prepare(
       `INSERT INTO installs (keyword_id, date, count, status, cost, created_at, deliver_at)

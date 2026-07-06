@@ -140,6 +140,9 @@ function mapKeyword(k) {
     dailyCap: k.daily_cap,
     status: k.status,
     totalInstalled: k.total_installed || 0,
+    totalDelivered: k.total_delivered || 0,
+    lastOrderStatus: k.last_order_status || null,
+    lastOrderDate: k.last_order_date || null,
     installs: {},  // filled lazily per app-detail page
   };
 }
@@ -158,13 +161,15 @@ function mapTx(t) {
 /* ─────── data loading ─────── */
 
 async function reloadAll() {
-  const [meRes, appsRes, txRes] = await Promise.all([
+  const [meRes, appsRes, txRes, sumRes] = await Promise.all([
     API.me(),
     API.listApps(),
     API.listTransactions(),
+    API.summary().catch(() => ({})),
   ]);
   data.user = { ...meRes.user, email_verified: !!meRes.email_verified };
   data.balance = meRes.balance;
+  data.totalDeposited = sumRes.total_deposited || 0;
   data.transactions = (txRes.transactions || []).map(mapTx);
   data.apps = (appsRes.apps || []).map(mapApp);
   // keywords lazy-loaded when needed; but for dashboard/campaigns counters we
@@ -987,7 +992,7 @@ function renderCampaigns() {
               <thead><tr>
                 <th>Приложение</th><th>Ключ</th><th>Тариф</th>
                 <th>Тек. позиция</th><th>Цель</th>
-                <th>Установлено</th><th>Дневной кап</th>
+                <th>${enMode() ? 'Delivered / ordered' : 'Доставлено / заказано'}</th><th>${enMode() ? 'Last order' : 'Последний заказ'}</th>
                 <th>Статус</th><th></th>
               </tr></thead>
               <tbody>${rows.map(({app, kw, installs}) => `
@@ -1005,8 +1010,8 @@ function renderCampaigns() {
                   <td class="mono" style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink-2);">${escapeHtml(kw.planTier || 'standard')}</td>
                   <td class="num">${kw.currentPos != null ? '#' + kw.currentPos : '—'}</td>
                   <td class="num green">#${kw.targetPos || '—'}</td>
-                  <td class="num green">${formatNum(installs)}</td>
-                  <td class="num">${formatNum(kw.dailyCap || 0)}/день</td>
+                  <td class="num"><span class="green">${formatNum(kw.totalDelivered || 0)}</span> <span style="color:var(--ink-3)">/ ${formatNum(installs)}</span></td>
+                  <td>${orderPill(kw.lastOrderStatus, kw.lastOrderDate)}</td>
                   <td>${statusPill(kw.status)}</td>
                   <td><button class="btn btn-ghost btn-sm" onclick="goPage('app', '${app.id}/campaigns')">Управлять →</button></td>
                 </tr>`).join('')}</tbody>
@@ -1063,6 +1068,40 @@ function renderTopup() {
   const customPrice = (data.user && data.user.custom_install_price != null)
     ? Number(data.user.custom_install_price) : null;
 
+  // Tier-progress: lifetime deposits vs the next cheaper tier (skip for personal price).
+  const dep = data.totalDeposited || 0;
+  const paid = PRICING_TIERS.filter(t => t.minDeposit > 0).sort((a, b) => a.minDeposit - b.minDeposit);
+  const nextTier = paid.find(t => dep < t.minDeposit) || null;
+  const curTier = [...paid].reverse().find(t => dep >= t.minDeposit) || PRICING_TIERS[0];
+  const en = enMode();
+  const tierProgress = (customPrice != null || !nextTier) ? '' : (() => {
+    const pct = Math.min(100, Math.round(dep / nextTier.minDeposit * 100));
+    const left = nextTier.minDeposit - dep;
+    return `
+      <div class="card">
+        <div class="card-body" style="padding:18px 24px;">
+          <div style="display:flex; justify-content:space-between; align-items:baseline; gap:14px; flex-wrap:wrap; margin-bottom:10px;">
+            <div style="font-size:13.5px; color:var(--ink-2);">
+              ${en
+                ? `Your tier: <b style="color:var(--ink)">${escapeHtml(curTier.name)}</b> · $${curTier.pricePerInstall.toFixed(2)}/install`
+                : `Ваш тариф: <b style="color:var(--ink)">${escapeHtml(curTier.name)}</b> · $${curTier.pricePerInstall.toFixed(2)}/установка`}
+            </div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--jade);">
+              ${en
+                ? `$${formatNum(left)} to "${escapeHtml(nextTier.name)}" ($${nextTier.pricePerInstall.toFixed(2)})`
+                : `до «${escapeHtml(nextTier.name)}» ($${nextTier.pricePerInstall.toFixed(2)}) осталось $${formatNum(left)}`}
+            </div>
+          </div>
+          <div style="height:8px; background:var(--bg-3); border-radius:100px; overflow:hidden;">
+            <div style="height:100%; width:${pct}%; border-radius:100px; background:linear-gradient(90deg, var(--jade-deep), var(--jade)); box-shadow:0 0 12px var(--jade-glow); transition:width .6s;"></div>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-top:6px; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-3);">
+            <span>${en ? 'deposited' : 'внесено'}: $${formatNum(dep)}</span><span>$${formatNum(nextTier.minDeposit)}</span>
+          </div>
+        </div>
+      </div>`;
+  })();
+
   return `
     <div class="page">
       <div class="page-header">
@@ -1078,6 +1117,8 @@ function renderTopup() {
           <b>Как это работает.</b> Укажите сумму и&nbsp;оплатите криптой&nbsp;— баланс зачислится <b style="color:var(--jade)">автоматически</b> после подтверждения сети, без участия менеджера. Чем больше депозит, тем дешевле установка. Средства невозвратные, но&nbsp;полностью откручиваются в&nbsp;установки.
         </div>
       </div>
+
+      ${tierProgress}
 
       ${customPrice != null ? `
       <div class="card" style="border:1px solid rgba(58,255,159,0.4); background:linear-gradient(180deg, rgba(58,255,159,0.07), rgba(58,255,159,0) 70%);">
@@ -2235,7 +2276,7 @@ function paintScheduler() {
         const val = perDay[d] != null ? perDay[d] : (ex ? ex.count : '');
         const label = dt.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' });
         return `<div class="sched-day ${val ? 'has-value' : ''} ${isWk ? 'weekend' : ''} ${d === todayStr ? 'today' : ''}">
-          <div class="sd-date">${label}${ex ? ` · ${ex.status === 'done' ? 'выполнено' : 'запланировано'}` : ''}</div>
+          <div class="sd-date">${label}${ex ? ` · ${({delivered:'✓ доставлено',in_progress:'в работе',scheduled:'запланировано',done:'выполнено'})[ex.status] || ex.status}` : ''}</div>
           <input type="number" min="0" max="9999" class="sd-input" data-date="${d}"
             value="${val}" placeholder="0"
             oninput="schedDayChange('${d}', this.value)">
@@ -2755,6 +2796,20 @@ function statusPill(status) {
   const map = { active: ['active', 'Активна'], paused: ['paused', 'Пауза'], done: ['done', 'Готово'], pending: ['pending', 'Ожидает'], scheduled: ['pending', 'Запланировано'] };
   const [cls, label] = map[status] || ['done', status || '—'];
   return `<span class="status-pill ${cls}">${label}</span>`;
+}
+
+/* Per-order lifecycle: scheduled (pool day ahead) → in_progress (pool day running) → delivered */
+function orderPill(status, date) {
+  if (!status) return '<span class="status-pill done">—</span>';
+  const en = enMode();
+  const map = {
+    scheduled:   ['pending', en ? 'Scheduled'  : 'Запланировано'],
+    in_progress: ['active',  en ? 'In progress': 'В работе'],
+    delivered:   ['done',    en ? 'Delivered'  : 'Доставлено'],
+  };
+  const [cls, label] = map[status] || ['done', status];
+  const d = date ? `<span class="mono" style="font-size:10px; color:var(--ink-3); margin-left:6px;">${escapeHtml(date.slice(5))}</span>` : '';
+  return `<span class="status-pill ${cls}">${label}</span>${d}`;
 }
 function storeBadge(store) {
   const gp = store === 'googleplay';
