@@ -191,8 +191,25 @@ router.post('/:id/installs', (req, res) => {
   const price = priceFor({ plan: kw.plan, customPrice: u ? u.custom_install_price : null });
   const cost = installCost(c, price);
 
+  // An order for this (keyword, day) may already exist. Once it's being worked
+  // or delivered it's locked — you can't un-deliver installs. Only a still-
+  // 'scheduled' day can be edited or cancelled, and money moves as a DELTA so
+  // reducing/cancelling refunds the difference and editing never double-charges.
+  const prev = db.prepare('SELECT count, cost, status FROM installs WHERE keyword_id = ? AND date = ?').get(kw.id, date);
+  if (prev && prev.status !== 'scheduled') {
+    return res.status(409).json({
+      error: 'order_locked',
+      status: prev.status,
+      message: prev.status === 'delivered'
+        ? 'Этот день уже доставлен — установки нельзя отменить или перенести.'
+        : 'Этот день уже в работе — изменить его нельзя. Напишите в поддержку.',
+    });
+  }
+  const prevCost = prev ? prev.cost : 0;
+  const delta = +(cost - prevCost).toFixed(2);   // >0 charge more, <0 refund
+
   const balance = getBalance(req.user.id);
-  if (cost > balance) return res.status(402).json({ error: 'insufficient_balance', balance });
+  if (delta > balance) return res.status(402).json({ error: 'insufficient_balance', balance });
 
   // Delivery lives inside the POOL DAY of the order: an order for tomorrow is
   // worked tomorrow and completes within that day (14:00–22:00 UTC), never
@@ -200,28 +217,43 @@ router.post('/:id/installs', (req, res) => {
   const ts = now();
   const deliverAt = deliverAtFor(date, ts);
   const tx = db.transaction(() => {
-    db.prepare(
-      `INSERT INTO installs (keyword_id, date, count, status, cost, created_at, deliver_at)
-       VALUES (?, ?, ?, 'scheduled', ?, ?, ?)
-       ON CONFLICT(keyword_id, date) DO UPDATE SET
-         count = excluded.count,
-         cost  = excluded.cost,
-         status = 'scheduled',
-         deliver_at = excluded.deliver_at`
-    ).run(kw.id, date, c, cost, ts, deliverAt);
+    if (c > 0) {
+      db.prepare(
+        `INSERT INTO installs (keyword_id, date, count, status, cost, created_at, deliver_at)
+         VALUES (?, ?, ?, 'scheduled', ?, ?, ?)
+         ON CONFLICT(keyword_id, date) DO UPDATE SET
+           count = excluded.count,
+           cost  = excluded.cost,
+           status = 'scheduled',
+           deliver_at = excluded.deliver_at`
+      ).run(kw.id, date, c, cost, ts, deliverAt);
+    } else if (prev) {
+      // Cancel: drop the scheduled row entirely so the day is free to re-plan.
+      db.prepare('DELETE FROM installs WHERE keyword_id = ? AND date = ?').run(kw.id, date);
+    }
 
-    if (cost > 0) {
+    // Money delta: charge the extra, or refund what was released (cancel / reduce).
+    if (delta > 0) {
       db.prepare(
         `INSERT INTO transactions (user_id, type, amount, status, description, ref_id, created_at)
          VALUES (?, 'spend', ?, 'done', ?, ?, ?)`
-      ).run(req.user.id, -cost, `Установки «${kw.term}» × ${c} (${date})`, `kw:${kw.id}:${date}`, now());
+      ).run(req.user.id, -delta, `Установки «${kw.term}» × ${c} (${date})`, `kw:${kw.id}:${date}`, now());
+    } else if (delta < 0) {
+      const backCount = prev ? prev.count : 0;
+      db.prepare(
+        `INSERT INTO transactions (user_id, type, amount, status, description, ref_id, created_at)
+         VALUES (?, 'refund', ?, 'done', ?, ?, ?)`
+      ).run(req.user.id, -delta, c > 0
+          ? `Возврат за изменение «${kw.term}» (${date}): ${backCount} → ${c}`
+          : `Возврат за отмену «${kw.term}» × ${backCount} (${date})`,
+        `kw:${kw.id}:${date}:refund:${ts}`, now());
     }
   });
   tx();
 
   const row = db.prepare('SELECT * FROM installs WHERE keyword_id = ? AND date = ?').get(kw.id, date);
-  broadcast(req.user.id, 'install.scheduled', { keyword_id: kw.id, install: row });
-  if (cost > 0) maybeEmailLowBalance(req.user.id);
+  broadcast(req.user.id, 'install.scheduled', { keyword_id: kw.id, date, install: row || null });
+  if (delta > 0) maybeEmailLowBalance(req.user.id);
 
   // Telegram notification (fire-and-forget)
   try {
@@ -237,13 +269,14 @@ router.post('/:id/installs', (req, res) => {
         meta: { keyword_id: kw.id, app_id: kw.app_id, date, count: c, cost },
       });
     } else {
+      const refunded = delta < 0 ? +(-delta).toFixed(2) : 0;
       notifyAdmin(tgInstallCancelled({
         user: userRow, app: appRow, keyword: kw,
-        date, refund: 0, balance: getBalance(req.user.id),
+        date, refund: refunded, balance: getBalance(req.user.id),
       })).catch(() => {});
       audit(req, {
         userId: req.user.id, action: 'install.cancelled',
-        meta: { keyword_id: kw.id, app_id: kw.app_id, date },
+        meta: { keyword_id: kw.id, app_id: kw.app_id, date, refund: refunded },
       });
     }
   } catch {}

@@ -2371,13 +2371,15 @@ async function submitInstalls() {
   submit.disabled = true;
   submit.textContent = 'Создаём…';
 
-  let okCount = 0, fail = 0;
+  const balBefore = data.balance;
+  let okCount = 0, fail = 0, locked = 0;
   for (const [date, count] of entries) {
     try {
       const r = await API.setInstalls(_scheduler.kw.apiId, date, count);
       data.balance = r.balance;
       okCount++;
     } catch (e) {
+      if (e.message === 'order_locked') { locked++; continue; }
       fail++;
       if (e.message === 'insufficient_balance') break;
     }
@@ -2385,9 +2387,13 @@ async function submitInstalls() {
   refreshUserUI();
   closeModal('installsModal');
   if (okCount) {
-    toast(`✓ Кампания запущена: ${okCount} ${okCount === 1 ? 'день' : 'дней'}`);
+    const diff = +(data.balance - balBefore).toFixed(2);
+    // A positive balance swing means days were reduced/cancelled → funds returned.
+    const refundNote = diff > 0 ? ` · возвращено $${diff.toFixed(2)} на баланс` : '';
+    toast(`✓ Сохранено: ${okCount} ${okCount === 1 ? 'день' : 'дней'}${refundNote}`);
   }
-  if (fail) toast(`Не удалось создать ${fail} записей`, 'error');
+  if (locked) toast(`${locked} ${locked === 1 ? 'день уже в работе/доставлен' : 'дней уже в работе/доставлены'} — их нельзя изменить`, 'error');
+  if (fail) toast(`Не удалось сохранить ${fail} ${fail === 1 ? 'день' : 'дней'}`, 'error');
 
   // refresh keyword data
   try {
