@@ -612,6 +612,7 @@ async function routeFromHash() {
       pageContent.innerHTML = (renderers[page] || renderDashboard)();
       if (page === 'topup') initTopup();
       if (page === 'referrals') loadReferrals();
+      if (page === 'dashboard') loadStorePulse();
     }
   } catch (e) {
     console.error(e);
@@ -625,6 +626,132 @@ window.addEventListener('hashchange', routeFromHash);
 /* ═══════════════════════════════════════════════════
    PAGES (mostly preserved from original)
    ═══════════════════════════════════════════════════ */
+
+/* ─────── Store Pulse (platform trust widget on the dashboard home) ─────── */
+async function loadStorePulse() {
+  const slot = document.getElementById('storePulse');
+  if (!slot) return;
+  let d;
+  try { d = await API.storePulse(); } catch { slot.innerHTML = ''; return; }
+  const en = enMode();
+  if (!d || !d.ready) { slot.innerHTML = ''; return; }   // no history yet → hide quietly
+
+  const T = (ru, e) => en ? e : ru;
+  const ago = (ts) => {
+    if (!ts) return T('нет данных', 'no data');
+    const m = Math.max(1, Math.round((Date.now() - ts) / 60000));
+    if (m < 60) return T(`${m} мин назад`, `${m} min ago`);
+    const h = Math.round(m / 60);
+    return T(`${h} ч назад`, `${h}h ago`);
+  };
+  const ST = {
+    active: ['var(--jade)', T('Активно ранжирует', 'Actively ranking')],
+    slowed: ['var(--gold)', T('Замедлен', 'Slowed updates')],
+    frozen: ['var(--cinnabar)', T('Заморожен', 'Frozen')],
+    stale:  ['var(--ink-3)', T('Обновляется', 'Updating…')],
+  };
+  const storeTile = (icon, name, s) => {
+    const [col, lbl] = ST[s.status] || ST.stale;
+    return `<div class="sp-tile" style="display:flex;align-items:center;gap:10px">
+      ${icon}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;color:var(--ink)">${name}</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:2px"><span style="width:6px;height:6px;border-radius:50%;background:${col};flex:none"></span><span style="font-size:11.5px;color:${col}">${lbl}</span></div>
+      </div>
+      <div class="sp-mono" style="font-size:9.5px;color:var(--ink-3);text-align:right">${ago(s.last_check)}</div>
+    </div>`;
+  };
+  const apple = `<svg width="18" height="18" viewBox="0 0 24 24" fill="var(--ink-3)"><path d="M16 1c-1 .1-2.3.8-3 1.6-.7.8-1.3 2-1.1 3.1 1.2 0 2.4-.7 3.1-1.5.7-.9 1.2-2 1-3.2zM19.5 17c-.6 1.4-1 2-1.8 3.2-1.1 1.7-2.7 3.8-4.6 3.8-1.7 0-2.1-1.1-4.4-1.1s-2.8 1.1-4.4 1.1c-1.9 0-3.4-1.9-4.5-3.6C-.9 16.9-1.2 11 1.3 8.1 2.4 6.7 4 6 5.5 6c1.9 0 3.1 1.1 4.7 1.1 1.5 0 2.4-1.1 4.6-1.1 1.3 0 2.7.4 3.7 1.4-3.2 1.8-2.7 6.4.9 8.6z"/></svg>`;
+  const gplay = `<svg width="16" height="16" viewBox="0 0 24 24" fill="var(--ink-3)"><path d="M3 2.5v19l10.5-9.5L3 2.5zm12.3 7.9L5.8 1.9l11.9 6.9-2.4 1.6zm3.9 2.3-2.9-1.7-2.6 2.5 2.6 2.5 2.9-1.7c.9-.5.9-1.4 0-1.6zM5.8 22.1l9.5-8.5 2.4 1.6-11.9 6.9z"/></svg>`;
+
+  const total = d.apps_total || 1;
+  const grownPct = Math.round((d.apps_grown / total) * 100);
+  const C = 214, dash = C * (1 - Math.min(1, d.apps_grown / total));
+  const climber = d.top_climber;
+  const maxPer = Math.max(...d.elasticity.map(e => e.per));
+  const bandLbl = { low: T('низкая', 'low'), mid_low: T('ниже ср.', 'mid-low'), mid: T('средняя', 'mid'), high: T('высокая', 'high') };
+
+  const appStatus = d.stores.appstore.status;
+  const windowGood = appStatus === 'active';
+  const windowSlow = appStatus === 'slowed';
+
+  slot.innerHTML = `
+  <div class="sp-card">
+    <div class="sp-head">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="sp-live"></span>
+        <div>
+          <div class="sp-title">${T('Пульс стора', 'Store pulse')}</div>
+          <div class="sp-sub">store radar · ${T('сегодня', 'today')}</div>
+        </div>
+      </div>
+      <div class="sp-mono" style="font-size:11px;color:var(--ink-3)">${T('обновлено', 'updated')} ${ago(d.generated_at)}</div>
+    </div>
+
+    <div class="sp-hero">
+      <div class="sp-tile" style="display:flex;align-items:center;gap:15px">
+        <svg width="76" height="76" viewBox="0 0 76 76" style="flex:none">
+          <circle cx="38" cy="38" r="34" fill="none" stroke="var(--line)" stroke-width="6"/>
+          <circle cx="38" cy="38" r="34" fill="none" stroke="var(--jade)" stroke-width="6" stroke-linecap="round" transform="rotate(-90 38 38)" style="stroke-dasharray:${C};stroke-dashoffset:${dash.toFixed(0)}"/>
+          <text x="38" y="35" text-anchor="middle" fill="var(--ink)" font-family="Archivo" font-weight="800" font-size="22">${d.apps_grown}</text>
+          <text x="38" y="50" text-anchor="middle" fill="var(--ink-3)" font-family="'IBM Plex Mono'" font-size="9">${T('из', 'of')} ${d.apps_total}</text>
+        </svg>
+        <div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--jade)" stroke-width="2.2"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
+            <span style="font-size:13.5px;color:var(--ink);font-weight:600">${T('Выросли сегодня', 'Grown today')}</span>
+          </div>
+          <div class="sp-mono" style="font-size:10.5px;color:var(--ink-3);line-height:1.6">${grownPct}% ${T('портфеля в плюсе', 'of portfolio up')}<br>${T('↑', '↑')}${d.keywords_up} ${T('ключей', 'keywords')} · ↓${d.keywords_down}</div>
+        </div>
+      </div>
+
+      <div class="sp-tile">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--gold)"><path d="M12 2c1 3 3 4 3 7a3 3 0 0 1-6 0c0-1 .3-1.7.8-2.4C8 8 6 9.5 6 13a6 6 0 0 0 12 0c0-4.5-3-7.5-6-11z"/></svg>
+          <span class="sp-mono" style="font-size:10px;letter-spacing:.14em;color:var(--gold);text-transform:uppercase">${T('рекордсмен роста · день', 'top climber · today')}</span>
+        </div>
+        ${climber ? `
+        <div style="display:flex;align-items:flex-end;gap:14px">
+          <div>
+            <div style="font-weight:800;font-size:40px;line-height:.9;color:var(--jade);letter-spacing:-.02em">+${climber.delta}</div>
+            <div class="sp-mono" style="font-size:11px;color:var(--ink-2);margin-top:6px">${T('позиций за сутки', 'ranks in 24h')}</div>
+            <div class="sp-mono" style="font-size:12px;color:var(--ink);margin-top:2px">#${climber.from} <span style="color:var(--ink-3)">→</span> <span style="color:var(--jade)">#${climber.to}</span></div>
+          </div>
+          <svg width="150" height="60" viewBox="0 0 150 60" style="flex:1;min-width:100px" preserveAspectRatio="none">
+            <path class="sp-spark" d="M4 54 L34 48 L64 40 L92 27 L118 15 L146 6" fill="none" stroke="var(--jade)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="146" cy="6" r="3.5" fill="var(--gold)"/>
+          </svg>
+        </div>
+        <div class="sp-mono" style="font-size:10px;color:var(--ink-3);margin-top:8px">${T('одно из приложений в работе · без раскрытия', 'one live app · anonymised')}</div>
+        ` : `<div class="sp-mono" style="font-size:12px;color:var(--ink-3);padding:12px 0">${T('пока без рекордов — данные копятся', 'no standout yet — data warming up')}</div>`}
+      </div>
+    </div>
+
+    <div class="sp-stores">
+      ${storeTile(apple, 'App Store', d.stores.appstore)}
+      ${storeTile(gplay, 'Google Play', d.stores.googleplay)}
+    </div>
+
+    <div class="sp-tile" style="margin-bottom:13px">
+      <div class="sp-mono" style="font-size:10px;letter-spacing:.1em;color:var(--ink-3);text-transform:uppercase;margin-bottom:10px">${T('Установок на +1 позицию · по частотности ключа', 'Installs per +1 rank · by keyword popularity')}</div>
+      <div style="display:flex;gap:8px">
+        ${d.elasticity.map(e => `<div style="flex:1;text-align:center">
+          <div style="height:44px;display:flex;align-items:flex-end;justify-content:center"><span style="width:60%;height:${Math.max(10, Math.round(e.per / maxPer * 100))}%;background:${e.band === 'high' ? 'linear-gradient(180deg,var(--gold),var(--jade))' : 'var(--jade)'};border-radius:3px 3px 0 0"></span></div>
+          <div class="sp-mono" style="font-size:13px;color:var(--ink);margin-top:4px">~${e.per}</div>
+          <div style="font-size:10px;color:var(--ink-3)">${bandLbl[e.band]}</div>
+        </div>`).join('')}
+      </div>
+    </div>
+
+    <div class="sp-window">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${windowGood ? 'var(--jade)' : windowSlow ? 'var(--gold)' : 'var(--ink-3)'}" stroke-width="2.2"><polyline points="4 12 9 17 20 6"/></svg>
+      <div>
+        <div style="font-size:13px;color:var(--ink)">${windowGood ? T('Хорошее окно для запуска', 'Good window to launch') : windowSlow ? T('Умеренное окно', 'Moderate window') : T('Лучше подождать', 'Better to wait')}</div>
+        <div class="sp-mono" style="font-size:10.5px;color:var(--ink-3);margin-top:1px">${windowGood ? T('App Store активно пересчитывает выдачу — пуш зайдёт эффективнее', 'App Store is actively re-ranking — pushes land better now') : T('App Store обновляет выдачу медленнее обычного', 'App Store is re-ranking slower than usual')}</div>
+      </div>
+    </div>
+  </div>`;
+}
 
 function renderDashboard() {
   const totalInstalls = data.apps.reduce((s, a) =>
@@ -728,6 +855,8 @@ function renderDashboard() {
           <div class="stat-c-sub">за всё время</div>
         </div>
       </div>
+
+      <div id="storePulse" class="store-pulse"></div>
 
       <div class="qa-grid">
         <div class="qa-card" onclick="goPage('observations')">
@@ -2372,11 +2501,12 @@ async function submitInstalls() {
   submit.textContent = 'Создаём…';
 
   const balBefore = data.balance;
-  let okCount = 0, fail = 0, locked = 0;
+  let okCount = 0, fail = 0, locked = 0, pending = 0;
   for (const [date, count] of entries) {
     try {
       const r = await API.setInstalls(_scheduler.kw.apiId, date, count);
-      data.balance = r.balance;
+      if (r && r.status === 'pending_approval') { pending++; continue; }
+      if (r && r.balance != null) data.balance = r.balance;
       okCount++;
     } catch (e) {
       if (e.message === 'order_locked') { locked++; continue; }
@@ -2392,7 +2522,8 @@ async function submitInstalls() {
     const refundNote = diff > 0 ? ` · возвращено $${diff.toFixed(2)} на баланс` : '';
     toast(`✓ Сохранено: ${okCount} ${okCount === 1 ? 'день' : 'дней'}${refundNote}`);
   }
-  if (locked) toast(`${locked} ${locked === 1 ? 'день уже в работе/доставлен' : 'дней уже в работе/доставлены'} — их нельзя изменить`, 'error');
+  if (pending) toast(`${pending === 1 ? 'Уменьшение на сегодня отправлено' : `${pending} изменений на сегодня отправлены`} менеджеру на согласование — деньги вернутся после подтверждения`);
+  if (locked) toast(`${locked} ${locked === 1 ? 'день уже доставлен/прошёл' : 'дней уже доставлены/прошли'} — их нельзя изменить`, 'error');
   if (fail) toast(`Не удалось сохранить ${fail} ${fail === 1 ? 'день' : 'дней'}`, 'error');
 
   // refresh keyword data

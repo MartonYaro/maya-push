@@ -82,6 +82,7 @@
 
     // dashboard
     summary:  () => request('GET',  '/dashboard/summary'),
+    storePulse: () => request('GET', '/dashboard/store-pulse'),
     tick:     () => request('POST', '/dashboard/tick'),
 
     // SSE
