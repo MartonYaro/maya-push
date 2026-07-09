@@ -121,6 +121,7 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_users_telegram ON users(telegram_id);`);
 // Admin controls (v0.5) — manual per-user price + blocking
 addColumnIfMissing('users', 'blocked', 'INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('users', 'custom_install_price', 'REAL');   // overrides plan price when set
+addColumnIfMissing('users', 'app_limit', 'INTEGER');           // per-user max apps; null = global default
 
 // Referral code generator — defined before the backfill below uses it.
 const REF_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous chars
@@ -167,6 +168,23 @@ CREATE TABLE IF NOT EXISTS password_resets (
   used        INTEGER NOT NULL DEFAULT 0,
   created_at  INTEGER NOT NULL
 );
+
+-- Same-day install reductions/cancellations need manager approval (the supplier
+-- may already be working that pool day), so they park here as 'pending' instead
+-- of auto-refunding. Future-day changes never hit this table.
+CREATE TABLE IF NOT EXISTS install_change_requests (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  keyword_id   INTEGER NOT NULL REFERENCES keywords(id) ON DELETE CASCADE,
+  date         TEXT NOT NULL,
+  from_count   INTEGER NOT NULL,
+  to_count     INTEGER NOT NULL,
+  refund       REAL NOT NULL DEFAULT 0,
+  status       TEXT NOT NULL DEFAULT 'pending',   -- pending | approved | rejected
+  created_at   INTEGER NOT NULL,
+  resolved_at  INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_change_req_status ON install_change_requests(status, created_at);
 
 -- Pageview beacons from the holding landing (group-maya.com). No PII —
 -- referrer is trimmed to a hostname client-side, no IPs stored.

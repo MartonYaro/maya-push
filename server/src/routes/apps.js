@@ -30,13 +30,15 @@ router.post('/', async (req, res) => {
   const appExtId = store.parseId(input);
   if (!appExtId) return res.status(400).json({ error: 'invalid_app_id' });
 
-  // Per-user app limit
+  // Per-user app limit: user.app_limit overrides the global default when set.
   const appsCount = db.prepare('SELECT COUNT(*) AS n FROM apps WHERE user_id = ?').get(req.user.id).n;
-  if (appsCount >= LIMITS.maxAppsPerUser) {
+  const uLim = db.prepare('SELECT app_limit FROM users WHERE id = ?').get(req.user.id);
+  const appLimit = (uLim && uLim.app_limit != null) ? uLim.app_limit : LIMITS.maxAppsPerUser;
+  if (appsCount >= appLimit) {
     return res.status(403).json({
       error: 'apps_limit_reached',
-      limit: LIMITS.maxAppsPerUser,
-      message: `Лимит ${LIMITS.maxAppsPerUser} приложений на аккаунт. Свяжись с менеджером для расширения.`,
+      limit: appLimit,
+      message: `Лимит ${appLimit} приложений на аккаунт. Свяжись с менеджером для расширения.`,
     });
   }
 

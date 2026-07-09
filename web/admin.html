@@ -144,11 +144,21 @@
   <div class="tabs">
     <div class="tab active" data-panel="orders" onclick="switchTab('orders')">Заказы установок <span class="count" id="ordersScheduledCount">0</span></div>
     <div class="tab" data-panel="topups" onclick="switchTab('topups')">Пополнения <span class="count" id="pendingCount">0</span></div>
+    <div class="tab" data-panel="approvals" onclick="switchTab('approvals')">Согласования <span class="count" id="approvalsCount">0</span></div>
     <div class="tab" data-panel="users" onclick="switchTab('users')">Пользователи <span class="count" id="usersCount">0</span></div>
     <div class="tab" data-panel="referrals" onclick="switchTab('referrals')">Рефералы <span class="count" id="referrersCount">0</span></div>
     <div class="tab" data-panel="finance" onclick="switchTab('finance')">Финансы</div>
     <div class="tab" data-panel="tx" onclick="switchTab('tx')">Все транзакции</div>
     <div class="tab" data-panel="stats" onclick="switchTab('stats')">Статистика сайта</div>
+  </div>
+
+  <!-- APPROVALS PANEL (same-day install reductions/cancels) -->
+  <div class="panel" id="panel-approvals">
+    <div class="card">
+      <h2><span>Согласования · уменьшение/отмена день-в-день</span>
+        <button class="btn btn-sm" onclick="loadApprovals()">↻ Обновить</button></h2>
+      <div id="approvalsTable"></div>
+    </div>
   </div>
 
   <!-- SITE STATS PANEL (group-maya.com beacon analytics) -->
@@ -577,7 +587,47 @@ async function refresh() {
     $('ordersScheduledCount2').textContent = ordersScheduled.orders.length;
     loadOrders();
     loadStats();
+    loadApprovals();
   } catch (e) { console.error(e); }
+}
+
+async function loadApprovals() {
+  try {
+    const d = await adminFetch('/api/admin/change-requests');
+    const reqs = d.requests || [];
+    $('approvalsCount').textContent = reqs.length;
+    const el = $('approvalsTable');
+    if (!reqs.length) { el.innerHTML = '<div style="opacity:.55;font-size:13px;padding:8px 2px">Заявок нет</div>'; return; }
+    el.innerHTML = `<div class="table-wrap"><table class="tbl">
+      <thead><tr><th>Клиент</th><th>Приложение · ключ</th><th>День</th><th>Было → станет</th><th>К возврату</th><th></th></tr></thead>
+      <tbody>${reqs.map(r => `
+        <tr>
+          <td><div style="font-weight:600">${esc(r.name || '—')}</div><div class="mono" style="font-size:10px;color:var(--ink-3)">${esc(r.email)}</div></td>
+          <td>${esc(r.app_name)} · <b>${esc(r.keyword)}</b></td>
+          <td class="mono">${esc(r.date)}</td>
+          <td class="mono">${fmtInt(r.from_count)} → ${r.to_count > 0 ? fmtInt(r.to_count) : '<span style="color:var(--cinnabar)">отмена</span>'}</td>
+          <td class="num green">${fmtMoney(r.refund)}</td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-sm" style="border-color:var(--jade);color:var(--jade)" onclick="approveChange(${r.id})">Подтвердить</button>
+            <button class="btn btn-sm btn-danger" onclick="rejectChange(${r.id})">Отклонить</button>
+          </td>
+        </tr>`).join('')}</tbody></table></div>`;
+  } catch (e) { console.warn(e); }
+}
+
+async function approveChange(id) {
+  try {
+    const r = await adminFetch('/api/admin/change-requests/' + id + '/approve', { method: 'POST' });
+    alert('✓ Согласовано, возврат ' + fmtMoney(r.refund));
+    refresh();
+  } catch (e) { alert('Ошибка: ' + e.message); loadApprovals(); }
+}
+async function rejectChange(id) {
+  if (!confirm('Отклонить заявку? Клиенту ничего не вернётся, заказ останется как есть.')) return;
+  try {
+    await adminFetch('/api/admin/change-requests/' + id + '/reject', { method: 'POST' });
+    loadApprovals();
+  } catch (e) { alert('Ошибка: ' + e.message); }
 }
 
 async function loadStats() {
@@ -836,6 +886,14 @@ function renderUserDetail(u) {
         </div>
       </div>
       <div class="ud-act">
+        <div class="ud-act-t">📱 Лимит приложений · сейчас <b>${u.apps_count ?? 0}</b> из <b>${u.app_limit != null ? u.app_limit : (u.default_app_limit || 25)}</b>${u.app_limit != null ? ' <span class="mono" style="color:var(--warn)">(ручной)</span>' : ' <span class="mono" style="color:var(--ink-3)">(дефолт)</span>'}</div>
+        <div class="ud-row">
+          <input type="number" id="udAppLimit" placeholder="лимит (пусто = дефолт ${u.default_app_limit || 25})" step="1" min="1" value="${u.app_limit != null ? u.app_limit : ''}">
+          <button class="btn primary" onclick="udSetAppLimit(${u.id})">Сохранить</button>
+          <button class="btn" onclick="udSetAppLimit(${u.id}, true)">Сбросить</button>
+        </div>
+      </div>
+      <div class="ud-act">
         <div class="ud-act-t">🔒 Доступ</div>
         <div class="ud-row">
           <button class="btn ${u.blocked ? 'primary' : 'danger'}" onclick="udBlock(${u.id}, ${u.blocked ? 0 : 1})">${u.blocked ? 'Разблокировать' : 'Заблокировать'}</button>
@@ -905,6 +963,13 @@ async function udSetRefRate(id, reset) {
   const val = reset ? '' : $('udRefRate').value;
   try {
     await adminFetch('/api/admin/users/' + id, { method: 'PATCH', body: JSON.stringify({ ref_rate: val === '' ? null : val }) });
+    await openUserDetail(id); refresh();
+  } catch (e) { alert('Ошибка: ' + e.message); }
+}
+async function udSetAppLimit(id, reset) {
+  const val = reset ? null : ($('udAppLimit').value === '' ? null : parseInt($('udAppLimit').value, 10));
+  try {
+    await adminFetch('/api/admin/users/' + id, { method: 'PATCH', body: JSON.stringify({ app_limit: val }) });
     await openUserDetail(id); refresh();
   } catch (e) { alert('Ошибка: ' + e.message); }
 }

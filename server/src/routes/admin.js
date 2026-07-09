@@ -10,6 +10,8 @@ import { runPositionDigest } from '../services/positionDigest.js';
 import { payDeliveryReferral } from '../services/referral.js';
 import { runReconcile } from '../services/nowpaymentsReconcile.js';
 import { nowpayments } from '../services/nowpayments.js';
+import { priceFor, installCost } from '../lib/pricing.js';
+import { LIMITS } from '../config/limits.js';
 
 const router = Router();
 
@@ -43,6 +45,74 @@ router.get('/group-stats', (req, res) => {
        FROM group_hits WHERE created_at > ? GROUP BY path ORDER BY views DESC LIMIT 10`
   ).all(since);
   res.json({ days, total, daily, referrers, langs, paths });
+});
+
+/* ── Same-day install change requests (reduction/cancel awaiting approval) ── */
+router.get('/change-requests', (req, res) => {
+  const rows = db.prepare(`
+    SELECT r.*, u.email, u.name, k.term AS keyword, a.name AS app_name, a.country
+      FROM install_change_requests r
+      JOIN users u    ON u.id = r.user_id
+      JOIN keywords k ON k.id = r.keyword_id
+      JOIN apps a     ON a.id = k.app_id
+     WHERE r.status = 'pending'
+     ORDER BY r.created_at ASC`).all();
+  res.json({ requests: rows });
+});
+
+router.post('/change-requests/:id/approve', (req, res) => {
+  const reqRow = db.prepare("SELECT * FROM install_change_requests WHERE id = ? AND status = 'pending'").get(req.params.id);
+  if (!reqRow) return res.status(404).json({ error: 'not_found_or_resolved' });
+
+  const inst = db.prepare('SELECT * FROM installs WHERE keyword_id = ? AND date = ?').get(reqRow.keyword_id, reqRow.date);
+  if (!inst) return res.status(409).json({ error: 'order_gone', message: 'Заказ уже отсутствует.' });
+  if (inst.status === 'delivered') {
+    return res.status(409).json({ error: 'already_delivered', message: 'Заказ уже доставлен — уменьшение невозможно, при желании верните вручную через баланс.' });
+  }
+
+  // Recompute the refund from the LIVE order state (state may have shifted since the request).
+  const kw = db.prepare('SELECT id, plan, term, app_id FROM keywords WHERE id = ?').get(reqRow.keyword_id);
+  const u  = db.prepare('SELECT custom_install_price FROM users WHERE id = ?').get(reqRow.user_id);
+  const price = priceFor({ plan: kw.plan, customPrice: u ? u.custom_install_price : null });
+  const newCost = installCost(reqRow.to_count, price);
+  const refund = +(inst.cost - newCost).toFixed(2);
+
+  const tx = db.transaction(() => {
+    if (reqRow.to_count > 0) {
+      db.prepare("UPDATE installs SET count = ?, cost = ?, updated_at = ? WHERE id = ?")
+        .run(reqRow.to_count, newCost, now(), inst.id);
+    } else {
+      db.prepare('DELETE FROM installs WHERE id = ?').run(inst.id);
+    }
+    if (refund > 0) {
+      db.prepare(
+        `INSERT INTO transactions (user_id, type, amount, status, description, ref_id, created_at)
+         VALUES (?, 'refund', ?, 'done', ?, ?, ?)`
+      ).run(reqRow.user_id, refund,
+        reqRow.to_count > 0
+          ? `Возврат (согласовано) «${kw.term}» (${reqRow.date}): ${reqRow.from_count} → ${reqRow.to_count}`
+          : `Возврат (согласовано) за отмену «${kw.term}» × ${reqRow.from_count} (${reqRow.date})`,
+        `chg:${reqRow.id}:refund`, now());
+    }
+    db.prepare("UPDATE install_change_requests SET status = 'approved', refund = ?, resolved_at = ? WHERE id = ?")
+      .run(refund, now(), reqRow.id);
+  });
+  tx();
+
+  const fresh = db.prepare('SELECT * FROM installs WHERE keyword_id = ? AND date = ?').get(reqRow.keyword_id, reqRow.date);
+  broadcast(reqRow.user_id, 'install.updated', fresh || { keyword_id: reqRow.keyword_id, date: reqRow.date, removed: true });
+  broadcast(reqRow.user_id, 'balance.updated', { balance: getBalance(reqRow.user_id) });
+  audit(req, { userId: reqRow.user_id, actorId: req.user.id, action: 'install.change_approved', meta: { request_id: reqRow.id, refund } });
+  res.json({ ok: true, refund });
+});
+
+router.post('/change-requests/:id/reject', (req, res) => {
+  const reqRow = db.prepare("SELECT * FROM install_change_requests WHERE id = ? AND status = 'pending'").get(req.params.id);
+  if (!reqRow) return res.status(404).json({ error: 'not_found_or_resolved' });
+  db.prepare("UPDATE install_change_requests SET status = 'rejected', resolved_at = ? WHERE id = ?").run(now(), reqRow.id);
+  broadcast(reqRow.user_id, 'install.change_rejected', { keyword_id: reqRow.keyword_id, date: reqRow.date });
+  audit(req, { userId: reqRow.user_id, actorId: req.user.id, action: 'install.change_rejected', meta: { request_id: reqRow.id } });
+  res.json({ ok: true });
 });
 
 // Manually trigger a NOWPayments reconciliation pass (auto-credit paid crypto
@@ -88,9 +158,11 @@ router.get('/users', (_req, res) => {
 router.get('/users/:id', (req, res) => {
   const u = db.prepare(`
     SELECT id, email, name, role, provider, telegram, avatar_url, blocked, custom_install_price,
-           email_verified, created_at, last_login_at, ref_code, referred_by, ref_rate
+           email_verified, created_at, last_login_at, ref_code, referred_by, ref_rate, app_limit
     FROM users WHERE id = ?`).get(req.params.id);
   if (!u) return res.status(404).json({ error: 'not_found' });
+  u.default_app_limit = LIMITS.maxAppsPerUser;
+  u.apps_count = db.prepare('SELECT COUNT(*) AS n FROM apps WHERE user_id = ?').get(u.id).n;
   u.balance = getBalance(u.id);
   u.total_deposited = db.prepare(
     `SELECT COALESCE(SUM(amount),0) AS s FROM transactions WHERE user_id=? AND status='done' AND type='topup' AND amount>0`
@@ -134,7 +206,7 @@ router.get('/users/:id', (req, res) => {
 router.patch('/users/:id', (req, res) => {
   const u = db.prepare('SELECT id, email FROM users WHERE id = ?').get(req.params.id);
   if (!u) return res.status(404).json({ error: 'not_found' });
-  const { blocked, custom_install_price, role, ref_rate } = req.body || {};
+  const { blocked, custom_install_price, role, ref_rate, app_limit } = req.body || {};
 
   if (blocked !== undefined) {
     db.prepare('UPDATE users SET blocked = ? WHERE id = ?').run(blocked ? 1 : 0, u.id);
@@ -147,6 +219,11 @@ router.patch('/users/:id', (req, res) => {
   if (role !== undefined && (role === 'admin' || role === 'user')) {
     db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, u.id);
   }
+  if (app_limit !== undefined) {
+    // null/'' resets to the global default; otherwise a positive integer cap.
+    const al = (app_limit === null || app_limit === '') ? null : Math.max(1, parseInt(app_limit, 10) || 0);
+    db.prepare('UPDATE users SET app_limit = ? WHERE id = ?').run(al, u.id);
+  }
   if (ref_rate !== undefined) {
     // null/'' resets to the global default; accept either a fraction (0.07) or a
     // percent the admin typed (7 → 0.07). Clamp to a sane 0–100% range.
@@ -155,8 +232,8 @@ router.patch('/users/:id', (req, res) => {
     else if (Number.isNaN(rr)) rr = null;
     db.prepare('UPDATE users SET ref_rate = ? WHERE id = ?').run(rr, u.id);
   }
-  audit(req, { userId: u.id, actorId: req.user.id, action: 'admin.user_update', meta: { blocked, custom_install_price, role, ref_rate } });
-  const row = db.prepare('SELECT id, blocked, custom_install_price, role, ref_rate FROM users WHERE id = ?').get(u.id);
+  audit(req, { userId: u.id, actorId: req.user.id, action: 'admin.user_update', meta: { blocked, custom_install_price, role, ref_rate, app_limit } });
+  const row = db.prepare('SELECT id, blocked, custom_install_price, role, ref_rate, app_limit FROM users WHERE id = ?').get(u.id);
   res.json({ ok: true, user: row });
 });
 
